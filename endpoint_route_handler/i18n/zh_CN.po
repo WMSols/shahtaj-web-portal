@@ -30,6 +30,18 @@ msgid "Auth Type"
 msgstr "认证类型"
 
 #. module: endpoint_route_handler
+#: model:ir.model.fields,help:endpoint_route_handler.field_endpoint_route_handler__cors
+#: model:ir.model.fields,help:endpoint_route_handler.field_endpoint_route_handler_tool__cors
+msgid "Comma-separated list of allowed origins"
+msgstr ""
+
+#. module: endpoint_route_handler
+#: model:ir.model.fields,field_description:endpoint_route_handler.field_endpoint_route_handler__cors
+#: model:ir.model.fields,field_description:endpoint_route_handler.field_endpoint_route_handler_tool__cors
+msgid "Cors"
+msgstr ""
+
+#. module: endpoint_route_handler
 #: model:ir.model.fields,field_description:endpoint_route_handler.field_endpoint_route_handler_tool__create_uid
 msgid "Created by"
 msgstr "创建人"
@@ -46,7 +58,10 @@ msgid "Csrf"
 msgstr "跨站请求伪造"
 
 #. module: endpoint_route_handler
+#: model:ir.model.fields,field_description:endpoint_route_handler.field_endpoint_route_handler__display_name
 #: model:ir.model.fields,field_description:endpoint_route_handler.field_endpoint_route_handler_tool__display_name
+#: model:ir.model.fields,field_description:endpoint_route_handler.field_endpoint_route_sync_mixin__display_name
+#: model:ir.model.fields,field_description:endpoint_route_handler.field_ir_http__display_name
 msgid "Display Name"
 msgstr "显示名称"
 
@@ -77,7 +92,10 @@ msgid "HTTP Routing"
 msgstr "HTTP路由"
 
 #. module: endpoint_route_handler
+#: model:ir.model.fields,field_description:endpoint_route_handler.field_endpoint_route_handler__id
 #: model:ir.model.fields,field_description:endpoint_route_handler.field_endpoint_route_handler_tool__id
+#: model:ir.model.fields,field_description:endpoint_route_handler.field_endpoint_route_sync_mixin__id
+#: model:ir.model.fields,field_description:endpoint_route_handler.field_ir_http__id
 msgid "ID"
 msgstr "ID"
 

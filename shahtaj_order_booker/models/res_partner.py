@@ -1,4 +1,9 @@
 # -*- coding: utf-8 -*-
+"""Extend contacts (res.partner) to store retail shops.
+
+Shops belong to one zone and one route. Bookers can register shops (pending approval).
+Distributors approve shops and may set legacy balance, which posts to Odoo accounting.
+"""
 import math
 
 from odoo import _, api, fields, models
@@ -7,7 +12,7 @@ from odoo.tools import float_is_zero
 
 MAX_REGISTRATION_DISTANCE_M = 100.0
 
-# Allow Shahtaj roles to use accounting credit fields on shops without Invoicing app rights.
+# Let distributor and booker edit credit fields without full Invoicing app rights.
 _SHAHTAJ_CREDIT_GROUPS = (
     'account.group_account_invoice,account.group_account_readonly,'
     'shahtaj_order_booker.group_shahtaj_distributor,'
@@ -18,6 +23,7 @@ _SHAHTAJ_CREDIT_GROUPS = (
 class ResPartner(models.Model):
     _inherit = 'res.partner'
 
+    # --- Shop identity and territory (one shop → one route) ---
     credit_limit = fields.Float(groups=_SHAHTAJ_CREDIT_GROUPS)
     use_partner_credit_limit = fields.Boolean(groups=_SHAHTAJ_CREDIT_GROUPS)
 
@@ -44,28 +50,12 @@ class ResPartner(models.Model):
         string='Route',
         ondelete='set null',
         domain="[('id', 'in', allowed_route_ids)]",
-    )
-    route_ids = fields.Many2many(
-        'shahtaj.route',
-        'shahtaj_route_partner_rel',
-        'partner_id',
-        'route_id',
-        string='Routes',
+        index=True,
     )
     registered_by_id = fields.Many2one(
         'res.users',
         string='Registered By',
         readonly=True,
-        copy=False,
-    )
-    registration_user_latitude = fields.Float(
-        string='Registration Booker Latitude',
-        digits=(10, 7),
-        copy=False,
-    )
-    registration_user_longitude = fields.Float(
-        string='Registration Booker Longitude',
-        digits=(10, 7),
         copy=False,
     )
     legacy_balance = fields.Monetary(
@@ -99,31 +89,17 @@ class ResPartner(models.Model):
         compute='_compute_allowed_zones_routes',
     )
 
-    @api.model
-    def _get_order_booker_routes(self):
-        """Routes assigned to this booker via weekly schedules."""
-        Schedule = self.env['shahtaj.weekly.schedule']
-        return Schedule.search([
-            ('order_booker_id', '=', self.env.uid),
-            ('active', '=', True),
-        ]).mapped('route_id').filtered('active')
-
+    # --- Zone/route dropdowns on shop forms (all active records for bookers) ---
     @api.model
     def _get_allowed_zone_ids(self):
-        Zone = self.env['shahtaj.zone']
-        if self._is_order_booker_only():
-            return self._get_order_booker_routes().mapped('zone_id').ids
-        return Zone.search([('active', '=', True)]).ids
+        return self.env['shahtaj.zone'].search([('active', '=', True)]).ids
 
     @api.model
     def _get_allowed_route_ids(self, zone_id=None):
-        if self._is_order_booker_only():
-            routes = self._get_order_booker_routes()
-        else:
-            routes = self.env['shahtaj.route'].search([('active', '=', True)])
+        domain = [('active', '=', True)]
         if zone_id:
-            routes = routes.filtered(lambda r: r.zone_id.id == zone_id)
-        return routes.ids
+            domain.append(('zone_id', '=', zone_id))
+        return self.env['shahtaj.route'].search(domain).ids
 
     @api.depends('zone_id')
     @api.depends_context('uid')
@@ -136,17 +112,9 @@ class ResPartner(models.Model):
             route_ids = self._get_allowed_route_ids(zone_id=zone_id)
             partner.allowed_route_ids = self.env['shahtaj.route'].browse(route_ids)
 
-    @api.model
-    def _is_order_booker_only(self):
-        user = self.env.user
-        if user.has_group('base.group_system'):
-            return False
-        if user.has_group('shahtaj_order_booker.group_shahtaj_distributor'):
-            return False
-        return user.has_group('shahtaj_order_booker.group_shahtaj_order_booker')
-
     @api.depends('legacy_balance_move_id')
     def _compute_outstanding_balance(self):
+        # Standard Odoo receivable balance for this customer (shop).
         for partner in self:
             partner.outstanding_balance = partner.sudo().credit
 
@@ -169,13 +137,15 @@ class ResPartner(models.Model):
         if self.owner_phone:
             self.phone = self.owner_phone
 
-    @api.constrains(
-        'is_shahtaj_shop', 'registration_user_latitude', 'registration_user_longitude',
-        'partner_latitude', 'partner_longitude', 'registered_by_id', 'shop_approval_state',
-    )
-    def _check_registration_gps_required(self):
-        for partner in self.filtered(lambda p: p._needs_registration_gps_check()):
-            partner._validate_registration_gps()
+    @api.constrains('route_id', 'zone_id', 'is_shahtaj_shop')
+    def _check_shop_route_zone(self):
+        for partner in self.filtered(lambda p: p.is_shahtaj_shop and p.route_id):
+            if partner.zone_id and partner.route_id.zone_id != partner.zone_id:
+                raise ValidationError(_(
+                    'Route "%(route)s" does not belong to zone "%(zone)s".',
+                    route=partner.route_id.name,
+                    zone=partner.zone_id.name,
+                ))
 
     @api.constrains('partner_latitude', 'partner_longitude')
     def _check_shop_gps_range(self):
@@ -197,14 +167,6 @@ class ResPartner(models.Model):
         )
         return 2 * radius * math.asin(math.sqrt(a))
 
-    def _needs_registration_gps_check(self):
-        """Booker-at-shop GPS check disabled at registration (visit-time GPS in Phase 2)."""
-        return False
-
-    def _validate_registration_gps(self):
-        """Legacy hook — registration no longer requires booker GPS."""
-        return
-
     def _validate_shop_required_fields(self):
         for partner in self.filtered('is_shahtaj_shop'):
             if not partner.name:
@@ -217,6 +179,7 @@ class ResPartner(models.Model):
                 raise ValidationError(_('Shop GPS latitude and longitude are required.'))
 
     def _prepare_shop_vals(self, vals):
+        """Set defaults when creating a shop from distributor or booker forms."""
         vals = dict(vals)
         if vals.get('is_shahtaj_shop') or self.env.context.get('shahtaj_shop_form'):
             vals.setdefault('is_shahtaj_shop', True)
@@ -237,14 +200,8 @@ class ResPartner(models.Model):
                 vals['use_partner_credit_limit'] = True
         return vals
 
-    def _sync_route_assignment(self):
-        Route = self.env['shahtaj.route'].sudo()
-        for partner in self:
-            if partner.route_id and partner.id not in partner.route_id.shop_ids.ids:
-                Route.browse(partner.route_id.id).write({'shop_ids': [(4, partner.id)]})
-
     def _post_legacy_balance_entry(self):
-        """Post opening receivable for legacy balance to Odoo accounting."""
+        """Post one journal entry: debit shop receivable, credit opening balance."""
         AccountMove = self.env['account.move'].sudo()
         AccountJournal = self.env['account.journal'].sudo()
         for partner in self.filtered(
@@ -308,7 +265,6 @@ class ResPartner(models.Model):
         partners = super().create(prepared)
         shop_partners = partners.filtered('is_shahtaj_shop')
         shop_partners._validate_shop_required_fields()
-        shop_partners._sync_route_assignment()
         shop_partners.filtered(
             lambda p: p.shop_approval_state == 'approved'
         )._post_legacy_balance_entry()
@@ -322,13 +278,12 @@ class ResPartner(models.Model):
         if vals.get('legacy_balance_move_id') and not self.env.context.get(
             'shahtaj_posting_legacy_move'
         ):
+            # Block manual edits; only _post_legacy_balance_entry may set this link.
             raise UserError(_('Legacy balance journal entry cannot be changed manually.'))
         res = super().write(vals)
         if any(k in vals for k in ('is_shahtaj_shop', 'name', 'owner_name', 'owner_phone',
                                     'partner_latitude', 'partner_longitude')):
             self.filtered('is_shahtaj_shop')._validate_shop_required_fields()
-        if 'route_id' in vals:
-            self._sync_route_assignment()
         if 'legacy_balance' in vals:
             self.filtered(
                 lambda p: p.shop_approval_state == 'approved' and not p.legacy_balance_move_id
@@ -336,6 +291,7 @@ class ResPartner(models.Model):
         return res
 
     def action_approve_shop(self):
+        """Distributor approves a pending shop; posts legacy balance if set."""
         pending = self.filtered(lambda p: p.shop_approval_state != 'approved')
         pending.write({'shop_approval_state': 'approved', 'is_shahtaj_shop': True})
         pending._post_legacy_balance_entry()
