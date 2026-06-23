@@ -1,90 +1,226 @@
 <?xml version="1.0" encoding="utf-8"?>
 <templates xml:space="preserve">
-    <t t-name="shahtaj_distributor.StaffManagementTemplate" owl="1">
+    <t t-name="shahtaj_distributor.StaffManagement" owl="1">
         <div class="card border-0 shadow-sm bg-white p-4">
-            
-            <div class="d-flex justify-content-between align-items-center mb-4 border-bottom pb-3">
-                <div>
-                    <h2 class="h4 font-weight-bold text-dark mb-0">Staff &amp; Role Management</h2>
-                    <small class="text-muted">Manage field personnel, assign roles, and allocate routes.</small>
-                </div>
-                <button class="btn btn-dark" t-on-click="openForm">+ Add New Staff</button>
+        
+        <div class="d-flex justify-content-between align-items-center mb-4 border-bottom pb-3">
+            <div>
+                <h2 class="h4 fw-bold text-dark mb-0">Staff &amp; Role Management</h2>
+                <small class="text-muted">Manage field personnel, assign roles, and track performance.</small>
             </div>
+            <button class="btn btn-dark fw-bold" t-if="!this.state.showForm and this.state.viewMode === 'list'" t-on-click="openForm">+ Add New Staff</button>
+        </div>
 
-            <t t-if="this.state.showForm">
-                <div class="p-4 bg-light rounded mb-4 border">
-                    <h5 class="font-weight-bold mb-3">Configure New Employee</h5>
-                    <div class="row">
-                        <div class="col-md-6 mb-3">
-                            <label class="small font-weight-bold">Full Name</label>
-                            <input type="text" class="form-control" t-model="this.state.formData.name" placeholder="e.g. Usman Tariq"/>
-                        </div>
-                        <div class="col-md-6 mb-3">
-                            <label class="small font-weight-bold">Operational Role</label>
-                            <select class="form-control" t-model="this.state.formData.role">
-                                <option value="">-- Select Role --</option>
-                                <option value="order_booker">Order Booker</option>
-                                <option value="delivery_man">Delivery Man</option>
-                                <option value="recovery_man">Recovery Man</option>
-                            </select>
-                        </div>
+        <t t-if="this.state.showForm">
+            <div class="p-4 bg-light rounded mb-4 border">
+                <h5 class="fw-bold mb-3">Configure New Employee</h5>
+                <div class="row">
+                    <div class="col-md-4 mb-3">
+                        <label class="small fw-bold">Full Name</label>
+                        <input type="text" class="form-control" t-model="this.state.formData.name" placeholder="e.g. Usman Tariq"/>
                     </div>
-
-                    <t t-if="this.state.formData.role === 'order_booker'">
-                        <div class="p-3 mb-3" style="background-color: #f0fdf4; border-left: 4px solid #16a34a;">
-                            <h6 class="font-weight-bold text-success mb-2">Order Booker Configuration</h6>
-                            <label class="small font-weight-bold">Assign Daily Route</label>
-                            <select class="form-control" t-model="this.state.formData.route_id">
-                                <option value="">-- Assign a Route --</option>
-                                <option value="Route A - City Center">Route A - City Center</option>
-                                <option value="Route B - Industrial Area">Route B - Industrial Area</option>
-                            </select>
-                            <small class="text-muted d-block mt-1">This user will have access to: Authentication, Route Management, Shop Check-ins, Shop Onboarding, and Order Creation.</small>
-                        </div>
-                    </t>
-
-                    <t t-if="this.state.formData.role === 'delivery_man' || this.state.formData.role === 'recovery_man'">
-                        <div class="p-3 mb-3" style="background-color: #eff6ff; border-left: 4px solid #2563eb;">
-                            <h6 class="font-weight-bold text-primary mb-2">Logistics Configuration</h6>
-                            <label class="small font-weight-bold">Assign Base Warehouse</label>
-                            <select class="form-control" t-model="this.state.formData.warehouse_id">
-                                <option value="">-- Select Warehouse --</option>
-                                <option value="Main Hub - Central">Main Hub - Central</option>
-                                <option value="Sub Hub - North">Sub Hub - North</option>
-                            </select>
-                        </div>
-                    </t>
-
-                    <div class="text-right mt-3">
-                        <button class="btn btn-outline-secondary mr-2" t-on-click="() => this.state.showForm = false">Cancel</button>
-                        <button class="btn btn-dark" t-on-click="saveStaff">Save Employee</button>
+                    <div class="col-md-4 mb-3">
+                        <label class="small fw-bold">Employee Code <span class="text-muted fw-normal">(Optional)</span></label>
+                        <input type="text" class="form-control" t-model="this.state.formData.employee_code" placeholder="e.g. EMP-099"/>
+                    </div>
+                    <div class="col-md-4 mb-3">
+                        <label class="small fw-bold">Operational Role</label>
+                        <select class="form-control" t-model="this.state.formData.role">
+                            <option value="">-- Select Role --</option>
+                            <option value="order_booker">Order Booker</option>
+                            <option value="delivery_man">Delivery Man</option>
+                            <option value="recovery_man">Recovery Man</option>
+                        </select>
                     </div>
                 </div>
-            </t>
+
+                <div class="row p-3 mb-3 border rounded bg-white shadow-sm mx-0">
+                    <div class="col-12 mb-3 border-bottom pb-2">
+                        <h6 class="fw-bold text-dark mb-0">Mobile App Credentials</h6>
+                        <small class="text-muted">Required for Flutter app authentication.</small>
+                    </div>
+                    <div class="col-md-6 mb-2 mb-md-0">
+                        <label class="small fw-bold text-muted">App Login Email</label>
+                        <input type="email" class="form-control" t-model="this.state.formData.email" placeholder="employee@shahtaj.com" autocomplete="off"/>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="small fw-bold text-muted">App Password</label>
+                        <input type="password" class="form-control" t-model="this.state.formData.password" placeholder="••••••••" autocomplete="new-password"/>
+                    </div>
+                </div>
+
+                <t t-if="this.state.formData.role === 'order_booker'">
+                    <div class="p-3 mb-3 rounded" style="background-color: #f0fdf4; border-left: 4px solid #16a34a;">
+                        <h6 class="fw-bold text-success mb-2">Order Booker Configuration</h6>
+                        <label class="small fw-bold">Assign Daily Route</label>
+                        <select class="form-control" t-model="this.state.formData.route_id">
+                            <option value="">-- Assign a Route --</option>
+                            <option value="Route A - City Center">Route A - City Center</option>
+                            <option value="Route B - Industrial Area">Route B - Industrial Area</option>
+                        </select>
+                    </div>
+                </t>
+
+                <t t-if="this.state.formData.role === 'delivery_man' || this.state.formData.role === 'recovery_man'">
+                    <div class="p-3 mb-3 rounded" style="background-color: #eff6ff; border-left: 4px solid #2563eb;">
+                        <h6 class="fw-bold text-primary mb-2">Logistics Configuration</h6>
+                        <label class="small fw-bold">Assign Base Warehouse</label>
+                        <select class="form-control" t-model="this.state.formData.warehouse_id">
+                            <option value="">-- Select Warehouse --</option>
+                            <option value="Main Hub - Central">Main Hub - Central</option>
+                            <option value="Sub Hub - North">Sub Hub - North</option>
+                        </select>
+                    </div>
+                </t>
+
+                <div class="d-flex justify-content-end gap-2 mt-4">
+                    <button class="btn btn-outline-secondary" t-on-click="() => this.state.showForm = false">Cancel</button>
+                    <button class="btn btn-dark" t-on-click="saveStaff">Save Employee</button>
+                </div>
+            </div>
+        </t>
+
+        <t t-if="!this.state.showForm and this.state.viewMode === 'list'">
+            
+            <ul class="nav nav-pills mb-4 border-bottom pb-2">
+                <li class="nav-item me-2">
+                    <button t-on-click="() => this.switchTab('all')" 
+                            t-attf-class="nav-link rounded-pill fw-bold px-4 py-2 border-0 #{this.state.activeTab === 'all' ? 'active bg-dark text-white shadow-sm' : 'text-muted bg-light'}">
+                        All Staff
+                    </button>
+                </li>
+                <li class="nav-item me-2">
+                    <button t-on-click="() => this.switchTab('order_booker')" 
+                            t-attf-class="nav-link rounded-pill fw-bold px-4 py-2 border-0 #{this.state.activeTab === 'order_booker' ? 'active bg-dark text-white shadow-sm' : 'text-muted bg-light'}">
+                        Order Bookers
+                    </button>
+                </li>
+                <li class="nav-item me-2">
+                    <button t-on-click="() => this.switchTab('delivery_man')" 
+                            t-attf-class="nav-link rounded-pill fw-bold px-4 py-2 border-0 #{this.state.activeTab === 'delivery_man' ? 'active bg-dark text-white shadow-sm' : 'text-muted bg-light'}">
+                        Delivery Fleet
+                    </button>
+                </li>
+                <li class="nav-item">
+                    <button t-on-click="() => this.switchTab('recovery_man')" 
+                            t-attf-class="nav-link rounded-pill fw-bold px-4 py-2 border-0 #{this.state.activeTab === 'recovery_man' ? 'active bg-dark text-white shadow-sm' : 'text-muted bg-light'}">
+                        Recovery Staff
+                    </button>
+                </li>
+            </ul>
 
             <div class="table-responsive">
-                <table class="table table-hover">
-                    <thead class="bg-light text-uppercase small font-weight-bold text-muted">
+                <table class="table table-hover align-middle">
+                    <thead class="bg-light text-uppercase small fw-bold text-muted">
                         <tr>
-                            <th>Employee Name</th>
-                            <th>Role</th>
-                            <th>Active Assignment</th>
-                            <th>Status</th>
+                            <th class="ps-3 border-top-0">Employee Profile</th>
+                            <th class="border-top-0">Role</th>
+                            <th class="border-top-0">Active Assignment</th>
+                            <th class="text-end pe-3 border-top-0">Action</th>
                         </tr>
                     </thead>
                     <tbody>
-                        <t t-foreach="this.state.staffList" t-as="staff" t-key="staff.id">
+                        <t t-if="filteredStaffList.length === 0">
+                            <tr><td colspan="4" class="text-center py-4 text-muted">No staff found in this category.</td></tr>
+                        </t>
+                        <t t-foreach="filteredStaffList" t-as="staff" t-key="staff.id">
                             <tr>
-                                <td class="font-weight-bold"><t t-esc="staff.name"/></td>
-                                <td><span class="badge badge-secondary"><t t-esc="staff.role"/></span></td>
+                                <td class="ps-3">
+                                    <div class="fw-bold text-dark"><t t-esc="staff.name"/></div>
+                                    <t t-if="staff.employee_code">
+                                        <small class="text-muted"><t t-esc="staff.employee_code"/></small>
+                                    </t>
+                                </td>
+                                <td><span class="badge bg-secondary text-white"><t t-esc="staff.role"/></span></td>
                                 <td><t t-esc="staff.assignment"/></td>
-                                <td><span class="text-success">● Active</span></td>
+                                <td class="text-end pe-3">
+                                    <t t-if="staff.role === 'Order Booker'">
+                                        <button class="btn btn-sm btn-outline-dark fw-bold" t-on-click="() => this.openDetails(staff)">View Details ➔</button>
+                                    </t>
+                                    <t t-else="">
+                                        <span class="text-success small fw-bold">● Active</span>
+                                    </t>
+                                </td>
                             </tr>
                         </t>
                     </tbody>
                 </table>
             </div>
+        </t>
 
-        </div>
+        <t t-if="this.state.viewMode === 'detail'">
+            
+            <div class="mb-4">
+                <button class="btn btn-sm btn-link text-muted fw-bold px-0 text-decoration-none mb-2" t-on-click="goBack">← Back to Staff Directory</button>
+                <div class="d-flex justify-content-between align-items-end border-bottom pb-3">
+                    <div>
+                        <h3 class="fw-bold text-dark mb-0"><t t-esc="this.state.selectedStaff.name"/></h3>
+                        <span class="badge bg-dark mt-2"><t t-esc="this.state.selectedStaff.role"/></span>
+                        <span class="text-muted small ms-2"><i class="fa fa-id-badge me-1"></i> <t t-esc="this.state.selectedStaff.employee_code || 'No Code'"/></span>
+                    </div>
+                </div>
+            </div>
+
+            <h6 class="fw-bold text-muted text-uppercase small mb-3">Today's Live Progress</h6>
+            <div class="row mb-4">
+                <div class="col-md-4">
+                    <div class="card bg-light border-0 shadow-sm p-3 border-start border-4 border-dark h-100">
+                        <div class="text-muted fw-bold small">Total Daily Tasks</div>
+                        <h2 class="fw-bold text-dark mb-0 mt-1"><t t-esc="this.state.selectedStaff.metrics.today.total"/></h2>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="card bg-light border-0 shadow-sm p-3 border-start border-4 border-success h-100">
+                        <div class="text-muted fw-bold small">Completed</div>
+                        <h2 class="fw-bold text-success mb-0 mt-1"><t t-esc="this.state.selectedStaff.metrics.today.completed"/></h2>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="card bg-light border-0 shadow-sm p-3 border-start border-4 border-warning h-100">
+                        <div class="text-muted fw-bold small">Pending</div>
+                        <h2 class="fw-bold text-warning mb-0 mt-1"><t t-esc="this.state.selectedStaff.metrics.today.pending"/></h2>
+                    </div>
+                </div>
+            </div>
+
+            <div class="row">
+                <div class="col-md-6 mb-4">
+                    <h6 class="fw-bold text-muted text-uppercase small mb-3">Active Campaign Target</h6>
+                    <div class="card border border-light shadow-sm p-4 h-100">
+                        <div class="d-flex justify-content-between align-items-start mb-3">
+                            <div>
+                                <h6 class="fw-bold text-dark mb-1"><t t-esc="this.state.selectedStaff.metrics.activeTarget.title"/></h6>
+                                <span class="badge bg-success-subtle text-success border border-success fw-bold px-2 py-1">Goal: <t t-esc="this.state.selectedStaff.metrics.activeTarget.goal"/></span>
+                            </div>
+                            <h4 class="fw-bold text-dark mb-0"><t t-esc="this.state.selectedStaff.metrics.activeTarget.progress"/>%</h4>
+                        </div>
+                        <div class="progress mt-auto" style="height: 10px;">
+                            <div class="progress-bar bg-dark" role="progressbar" 
+                                 t-attf-style="width: #{this.state.selectedStaff.metrics.activeTarget.progress}%;" 
+                                 t-att-aria-valuenow="this.state.selectedStaff.metrics.activeTarget.progress" aria-valuemin="0" aria-valuemax="100"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="col-md-6 mb-4">
+                    <h6 class="fw-bold text-muted text-uppercase small mb-3">Assigned Weekly Schedules</h6>
+                    <div class="card border border-light shadow-sm p-0 h-100 overflow-hidden">
+                        <ul class="list-group list-group-flush">
+                            <t t-if="this.state.selectedStaff.metrics.schedules.length === 0">
+                                <li class="list-group-item text-muted py-3">No active schedules assigned.</li>
+                            </t>
+                            <t t-foreach="this.state.selectedStaff.metrics.schedules" t-as="schedule" t-key="schedule">
+                                <li class="list-group-item d-flex align-items-center py-3">
+                                    <i class="fa fa-calendar-check text-success me-3"></i>
+                                    <span class="fw-bold text-dark"><t t-esc="schedule"/></span>
+                                </li>
+                            </t>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+
+        </t>
+    </div>
     </t>
 </templates>

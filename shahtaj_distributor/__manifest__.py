@@ -22,9 +22,6 @@
             'shahtaj_distributor/static/src/js/components/settings.js',
             'shahtaj_distributor/static/src/js/components/schedules_targets.js',
             'shahtaj_distributor/static/src/js/components/dashboard.js',
-        ],
-        'web.assets_qweb': [
-            # Explicitly tell Odoo to load all XMLs as QWeb templates
             'shahtaj_distributor/static/src/xml/*.xml',
         ],
     },
