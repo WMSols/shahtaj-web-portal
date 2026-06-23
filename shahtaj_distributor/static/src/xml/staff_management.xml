@@ -1,0 +1,90 @@
+<?xml version="1.0" encoding="utf-8"?>
+<templates xml:space="preserve">
+    <t t-name="shahtaj_distributor.StaffManagementTemplate" owl="1">
+        <div class="card border-0 shadow-sm bg-white p-4">
+            
+            <div class="d-flex justify-content-between align-items-center mb-4 border-bottom pb-3">
+                <div>
+                    <h2 class="h4 font-weight-bold text-dark mb-0">Staff &amp; Role Management</h2>
+                    <small class="text-muted">Manage field personnel, assign roles, and allocate routes.</small>
+                </div>
+                <button class="btn btn-dark" t-on-click="openForm">+ Add New Staff</button>
+            </div>
+
+            <t t-if="this.state.showForm">
+                <div class="p-4 bg-light rounded mb-4 border">
+                    <h5 class="font-weight-bold mb-3">Configure New Employee</h5>
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="small font-weight-bold">Full Name</label>
+                            <input type="text" class="form-control" t-model="this.state.formData.name" placeholder="e.g. Usman Tariq"/>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="small font-weight-bold">Operational Role</label>
+                            <select class="form-control" t-model="this.state.formData.role">
+                                <option value="">-- Select Role --</option>
+                                <option value="order_booker">Order Booker</option>
+                                <option value="delivery_man">Delivery Man</option>
+                                <option value="recovery_man">Recovery Man</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <t t-if="this.state.formData.role === 'order_booker'">
+                        <div class="p-3 mb-3" style="background-color: #f0fdf4; border-left: 4px solid #16a34a;">
+                            <h6 class="font-weight-bold text-success mb-2">Order Booker Configuration</h6>
+                            <label class="small font-weight-bold">Assign Daily Route</label>
+                            <select class="form-control" t-model="this.state.formData.route_id">
+                                <option value="">-- Assign a Route --</option>
+                                <option value="Route A - City Center">Route A - City Center</option>
+                                <option value="Route B - Industrial Area">Route B - Industrial Area</option>
+                            </select>
+                            <small class="text-muted d-block mt-1">This user will have access to: Authentication, Route Management, Shop Check-ins, Shop Onboarding, and Order Creation.</small>
+                        </div>
+                    </t>
+
+                    <t t-if="this.state.formData.role === 'delivery_man' || this.state.formData.role === 'recovery_man'">
+                        <div class="p-3 mb-3" style="background-color: #eff6ff; border-left: 4px solid #2563eb;">
+                            <h6 class="font-weight-bold text-primary mb-2">Logistics Configuration</h6>
+                            <label class="small font-weight-bold">Assign Base Warehouse</label>
+                            <select class="form-control" t-model="this.state.formData.warehouse_id">
+                                <option value="">-- Select Warehouse --</option>
+                                <option value="Main Hub - Central">Main Hub - Central</option>
+                                <option value="Sub Hub - North">Sub Hub - North</option>
+                            </select>
+                        </div>
+                    </t>
+
+                    <div class="text-right mt-3">
+                        <button class="btn btn-outline-secondary mr-2" t-on-click="() => this.state.showForm = false">Cancel</button>
+                        <button class="btn btn-dark" t-on-click="saveStaff">Save Employee</button>
+                    </div>
+                </div>
+            </t>
+
+            <div class="table-responsive">
+                <table class="table table-hover">
+                    <thead class="bg-light text-uppercase small font-weight-bold text-muted">
+                        <tr>
+                            <th>Employee Name</th>
+                            <th>Role</th>
+                            <th>Active Assignment</th>
+                            <th>Status</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <t t-foreach="this.state.staffList" t-as="staff" t-key="staff.id">
+                            <tr>
+                                <td class="font-weight-bold"><t t-esc="staff.name"/></td>
+                                <td><span class="badge badge-secondary"><t t-esc="staff.role"/></span></td>
+                                <td><t t-esc="staff.assignment"/></td>
+                                <td><span class="text-success">● Active</span></td>
+                            </tr>
+                        </t>
+                    </tbody>
+                </table>
+            </div>
+
+        </div>
+    </t>
+</templates>

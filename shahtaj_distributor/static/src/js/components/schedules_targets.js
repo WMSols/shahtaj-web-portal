@@ -1,0 +1,476 @@
+/** @odoo-module **/
+
+import { Component, useState, xml } from "@odoo/owl";
+
+export class SchedulesTargets extends Component {
+    setup() {
+        this.state = useState({
+            activeMainTab: 'schedules', // 'schedules' or 'targets'
+            viewMode: 'list', // 'list' or 'detail'
+            selectedBooker: null,
+            showForm: false,
+            errorMessage: '',
+
+            // Form Data
+            scheduleForm: { day: '', route: '', zone: '', is_active: true },
+            targetForm: { startDate: '', endDate: '', is_active: true, type: '', amount: '', currency: 'PKR', product: '' },
+
+            // Mock Data
+            bookers: [
+                { id: "OB-01", name: "Ali Khan", zone: "North Zone", route: "Commercial Market Main" },
+                { id: "OB-02", name: "Usman Tariq", zone: "North Zone", route: "Phase 1 Residential" },
+                { id: "OB-03", name: "Zain Ahmed", zone: "South Zone", route: "Factory Area Link" }
+            ],
+            
+            // Shared Data Arrays
+            schedules: [],
+            targets: [],
+            
+            // Dropdown Options
+            zones: ["North Zone - City Center", "South Zone - Industrial", "East Zone - Suburbs"],
+            routes: ["Commercial Market Main", "Phase 1 Residential", "Factory Area Link"]
+        });
+    }
+
+    // --- Navigation Controllers ---
+    switchMainTab(tab) {
+        this.state.activeMainTab = tab;
+        this.state.viewMode = 'list';
+        this.state.selectedBooker = null;
+        this.state.showForm = false;
+        this.state.errorMessage = '';
+    }
+
+    openBookerDetails(booker) {
+        this.state.selectedBooker = booker;
+        this.state.viewMode = 'detail';
+        this.state.showForm = false;
+        this.state.errorMessage = '';
+    }
+
+    goBackToList() {
+        this.state.viewMode = 'list';
+        this.state.selectedBooker = null;
+        this.state.showForm = false;
+        this.state.errorMessage = '';
+    }
+
+    openForm() {
+        this.state.showForm = true;
+        this.state.errorMessage = '';
+        // Reset forms
+        this.state.scheduleForm = { day: '', route: '', zone: '', is_active: true };
+        this.state.targetForm = { startDate: '', endDate: '', is_active: true, type: '', amount: '', currency: 'PKR', product: '' };
+    }
+
+    // --- Data Getters ---
+    get currentBookerSchedules() {
+        return this.state.schedules.filter(s => s.bookerId === this.state.selectedBooker?.id);
+    }
+
+    get currentBookerTargets() {
+        return this.state.targets.filter(t => t.bookerId === this.state.selectedBooker?.id);
+    }
+
+    // --- Save Handlers ---
+    saveSchedule() {
+        // Validation: Check if day is already scheduled for this booker
+        const dayExists = this.currentBookerSchedules.some(s => s.day === this.state.scheduleForm.day);
+        
+        if (dayExists) {
+            this.state.errorMessage = `A schedule for ${this.state.scheduleForm.day} already exists for this Order Booker.`;
+            return;
+        }
+
+        if (!this.state.scheduleForm.day || !this.state.scheduleForm.route) {
+            this.state.errorMessage = "Day and Route are required.";
+            return;
+        }
+
+        this.state.schedules.push({
+            id: `SCH-${Date.now()}`,
+            bookerId: this.state.selectedBooker.id,
+            day: this.state.scheduleForm.day,
+            route: this.state.scheduleForm.route,
+            zone: this.state.scheduleForm.zone,
+            status: this.state.scheduleForm.is_active ? "Active" : "Inactive",
+            progress: "0%",
+            done: 0,
+            planned: 0,
+            shops: 0 // Will be calculated by backend
+        });
+
+        this.state.showForm = false;
+        this.state.errorMessage = '';
+    }
+
+    saveTarget() {
+        if (!this.state.targetForm.startDate || !this.state.targetForm.endDate || !this.state.targetForm.type) {
+            this.state.errorMessage = "Start Date, End Date, and Target Type are required.";
+            return;
+        }
+        const start = new Date(this.state.targetForm.startDate);
+        const end = new Date(this.state.targetForm.endDate);
+        
+        if (end < start) {
+            this.state.errorMessage = "The End Date cannot be earlier than the Start Date.";
+            return;
+        }
+
+        this.state.targets.push({
+            id: `TGT-${Date.now()}`,
+            bookerId: this.state.selectedBooker.id,
+            startDate: this.state.targetForm.startDate,
+            endDate: this.state.targetForm.endDate,
+            type: this.state.targetForm.type,
+            amount: this.state.targetForm.amount,
+            currency: this.state.targetForm.type === 'sales_amount' ? this.state.targetForm.currency : null,
+            product: this.state.targetForm.type === 'product_quantity' ? this.state.targetForm.product : null,
+            status: this.state.targetForm.is_active ? "Active" : "Inactive",
+            progressPercentage: "0%",
+            achievedAmount: 0
+        });
+
+        this.state.showForm = false;
+        this.state.errorMessage = '';
+    }
+}
+
+SchedulesTargets.template = xml`
+    <div class="card border-0 shadow-sm bg-white">
+        
+        <!-- Header -->
+        <div class="p-4 border-bottom bg-light d-flex justify-content-between align-items-center rounded-top">
+            <div>
+                <h2 class="h4 font-weight-bold text-dark mb-0">Schedules &amp; Targets Hub</h2>
+                <small class="text-muted">Manage weekly routes and performance KPIs for field staff.</small>
+            </div>
+        </div>
+
+        <!-- Main Navigation Pills (Only show in List Mode) -->
+        <t t-if="this.state.viewMode === 'list'">
+            <div class="p-3 border-bottom">
+                <ul class="nav nav-pills nav-fill">
+                    <li class="nav-item">
+                        <button t-on-click="() => this.switchMainTab('schedules')" 
+                                t-attf-class="nav-link font-weight-bold rounded-pill border-0 px-4 py-2 w-100 transition-all #{this.state.activeMainTab === 'schedules' ? 'active bg-dark text-white shadow-sm' : 'text-muted bg-white'}">
+                            📅 Weekly Schedules
+                        </button>
+                    </li>
+                    <li class="nav-item mx-2">
+                        <button t-on-click="() => this.switchMainTab('targets')" 
+                                t-attf-class="nav-link font-weight-bold rounded-pill border-0 px-4 py-2 w-100 transition-all #{this.state.activeMainTab === 'targets' ? 'active bg-dark text-white shadow-sm' : 'text-muted bg-white'}">
+                            🎯 Performance Targets
+                        </button>
+                    </li>
+                </ul>
+            </div>
+
+            <!-- ================= LIST VIEW (Bookers Table) ================= -->
+            <div class="table-responsive">
+                <table class="table table-hover mb-0">
+                    <thead class="bg-light text-uppercase small font-weight-bold text-muted">
+                        <tr>
+                            <th class="border-top-0 pl-4">Order Booker</th>
+                            <th class="border-top-0">Assigned Zone</th>
+                            <th class="border-top-0">Primary Route</th>
+                            <th class="border-top-0 text-right pr-4">Action</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <t t-foreach="this.state.bookers" t-as="booker" t-key="booker.id">
+                            <tr>
+                                <td class="pl-4 align-middle font-weight-bold text-dark">
+                                    <t t-esc="booker.name"/>
+                                    <small class="d-block text-muted font-weight-normal"><t t-esc="booker.id"/></small>
+                                </td>
+                                <td class="align-middle"><t t-esc="booker.zone"/></td>
+                                <td class="align-middle"><t t-esc="booker.route"/></td>
+                                <td class="align-middle text-right pr-4">
+                                    <button class="btn btn-sm btn-outline-dark font-weight-bold" 
+                                            t-on-click="() => this.openBookerDetails(booker)">
+                                        <t t-if="this.state.activeMainTab === 'schedules'">View Schedules ➔</t>
+                                        <t t-else="">View Targets ➔</t>
+                                    </button>
+                                </td>
+                            </tr>
+                        </t>
+                    </tbody>
+                </table>
+            </div>
+        </t>
+
+
+        <!-- ================= DETAIL VIEW (Drill Down) ================= -->
+        <t t-if="this.state.viewMode === 'detail'">
+            
+            <!-- Breadcrumbs & Actions -->
+            <div class="p-3 bg-light border-bottom d-flex justify-content-between align-items-center">
+                <div>
+                    <button class="btn btn-sm btn-link text-muted font-weight-bold px-0 text-decoration-none" t-on-click="goBackToList">
+                        ← Back to List
+                    </button>
+                    <h5 class="font-weight-bold text-dark mb-0 mt-1">
+                        <t t-if="this.state.activeMainTab === 'schedules'">Weekly Schedules: </t>
+                        <t t-else="">Performance Targets: </t>
+                        <span class="text-primary"><t t-esc="this.state.selectedBooker.name"/></span>
+                    </h5>
+                </div>
+                <t t-if="!this.state.showForm">
+                    <button class="btn btn-dark shadow-sm font-weight-bold" t-on-click="openForm">
+                        <t t-if="this.state.activeMainTab === 'schedules'">+ Add Schedule</t>
+                        <t t-else="">+ Add Target</t>
+                    </button>
+                </t>
+            </div>
+
+            <!-- Error Banner -->
+            <t t-if="this.state.errorMessage">
+                <div class="alert alert-danger m-3 py-2 small font-weight-bold" role="alert">
+                    <i class="fa fa-exclamation-triangle mr-2"></i> <t t-esc="this.state.errorMessage"/>
+                </div>
+            </t>
+
+
+            <!-- === ADD SCHEDULE FORM === -->
+            <t t-if="this.state.showForm and this.state.activeMainTab === 'schedules'">
+                <div class="p-4 bg-white border-bottom">
+                    <h6 class="font-weight-bold text-dark mb-3 border-bottom pb-2">New Schedule Configuration</h6>
+                    
+                    <div class="row align-items-end mb-4">
+                        <div class="col-md-3">
+                            <label class="small font-weight-bold">Day of the Week</label>
+                            <select class="form-control" t-model="this.state.scheduleForm.day">
+                                <option value="">-- Select Day --</option>
+                                <option value="Monday">Monday</option>
+                                <option value="Tuesday">Tuesday</option>
+                                <option value="Wednesday">Wednesday</option>
+                                <option value="Thursday">Thursday</option>
+                                <option value="Friday">Friday</option>
+                                <option value="Saturday">Saturday</option>
+                                <option value="Sunday">Sunday</option>
+                            </select>
+                        </div>
+                        <div class="col-md-3">
+                            <label class="small font-weight-bold">Zone</label>
+                            <select class="form-control" t-model="this.state.scheduleForm.zone">
+                                <option value="">-- Select Zone --</option>
+                                <t t-foreach="this.state.zones" t-as="z" t-key="z"><option t-att-value="z"><t t-esc="z"/></option></t>
+                            </select>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="small font-weight-bold">Route</label>
+                            <select class="form-control" t-model="this.state.scheduleForm.route">
+                                <option value="">-- Select Route --</option>
+                                <t t-foreach="this.state.routes" t-as="r" t-key="r"><option t-att-value="r"><t t-esc="r"/></option></t>
+                            </select>
+                        </div>
+                        <div class="col-md-2 pb-2">
+                            <div class="custom-control custom-switch">
+                                <input type="checkbox" class="custom-control-input" id="schedActiveSwitch" t-model="this.state.scheduleForm.is_active"/>
+                                <label class="custom-control-label small font-weight-bold cursor-pointer" for="schedActiveSwitch">Active</label>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Read-Only Progress Details -->
+                    <div class="p-3 bg-light rounded border mb-4">
+                        <h6 class="font-weight-bold text-muted mb-3 small text-uppercase">Tracking Parameters (Auto-Calculated)</h6>
+                        <div class="row">
+                            <div class="col-md-3">
+                                <label class="small font-weight-bold text-muted">Shops on Route</label>
+                                <input type="text" class="form-control bg-white text-center font-weight-bold" value="0" disabled="1"/>
+                            </div>
+                            <div class="col-md-3">
+                                <label class="small font-weight-bold text-muted">Planned Visits</label>
+                                <input type="text" class="form-control bg-white text-center font-weight-bold" value="0" disabled="1"/>
+                            </div>
+                            <div class="col-md-3">
+                                <label class="small font-weight-bold text-muted">Done Visits</label>
+                                <input type="text" class="form-control bg-white text-center font-weight-bold" value="0" disabled="1"/>
+                            </div>
+                            <div class="col-md-3">
+                                <label class="small font-weight-bold text-muted">Day Progress</label>
+                                <input type="text" class="form-control bg-white text-center font-weight-bold text-success" value="0%" disabled="1"/>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="d-flex justify-content-end mt-3">
+                        <button class="btn btn-outline-secondary mr-2" t-on-click="() => this.state.showForm = false">Cancel</button>
+                        <button class="btn btn-dark px-4" t-on-click="saveSchedule">Save Schedule</button>
+                    </div>
+                </div>
+            </t>
+
+
+            <!-- === ADD TARGET FORM === -->
+            <t t-if="this.state.showForm and this.state.activeMainTab === 'targets'">
+                <div class="p-4 bg-white border-bottom">
+                    <h6 class="font-weight-bold text-dark mb-3 border-bottom pb-2">New Target Configuration</h6>
+                    
+                    <div class="row mb-3">
+                        <div class="col-md-3">
+                            <label class="small font-weight-bold">Start Period</label>
+                            <input type="date" class="form-control" t-model="this.state.targetForm.startDate"/>
+                        </div>
+                        <div class="col-md-3">
+                            <label class="small font-weight-bold">End Period</label>
+                            <input type="date" class="form-control" t-model="this.state.targetForm.endDate"/>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="small font-weight-bold">Target Type</label>
+                            <select class="form-control" t-model="this.state.targetForm.type">
+                                <option value="">-- Select Type --</option>
+                                <option value="visit_count">Visit Count</option>
+                                <option value="order_count">Order Count</option>
+                                <option value="sales_amount">Sales Amount</option>
+                                <option value="product_quantity">Product Quantity</option>
+                            </select>
+                        </div>
+                        <div class="col-md-2 pt-4 mt-1">
+                            <div class="custom-control custom-switch">
+                                <input type="checkbox" class="custom-control-input" id="targetActiveSwitch" t-model="this.state.targetForm.is_active"/>
+                                <label class="custom-control-label small font-weight-bold cursor-pointer" for="targetActiveSwitch">Active</label>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="row mb-4">
+                        <div class="col-md-4">
+                            <label class="small font-weight-bold">Target Amount / Value</label>
+                            <input type="number" class="form-control" t-model="this.state.targetForm.amount" placeholder="e.g. 500"/>
+                        </div>
+                        
+                        <!-- Dynamic Field: Currency -->
+                        <t t-if="this.state.targetForm.type === 'sales_amount'">
+                            <div class="col-md-4">
+                                <label class="small font-weight-bold text-success">Currency</label>
+                                <select class="form-control border-success" t-model="this.state.targetForm.currency">
+                                    <option value="PKR">PKR (Pakistani Rupee)</option>
+                                    <option value="USD">USD (US Dollar)</option>
+                                </select>
+                            </div>
+                        </t>
+
+                        <!-- Dynamic Field: Product -->
+                        <t t-if="this.state.targetForm.type === 'product_quantity'">
+                            <div class="col-md-4">
+                                <label class="small font-weight-bold text-primary">Target Product</label>
+                                <input type="text" class="form-control border-primary" t-model="this.state.targetForm.product" placeholder="e.g. Shahtaj Premium 5L"/>
+                            </div>
+                        </t>
+                    </div>
+
+                    <hr class="mb-4"/>
+
+                    <!-- Read-Only Progress Details -->
+                    <div class="p-3 bg-light rounded border mb-4">
+                        <h6 class="font-weight-bold text-muted mb-3 small text-uppercase">Live Progress Details (Auto-Calculated)</h6>
+                        <div class="row">
+                            <div class="col-md-6">
+                                <label class="small font-weight-bold text-muted">Achieved So Far</label>
+                                <input type="text" class="form-control bg-white font-weight-bold" value="0 / Pending" disabled="1"/>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="small font-weight-bold text-muted">Overall Progress</label>
+                                <div class="progress mt-2" style="height: 25px;">
+                                    <div class="progress-bar bg-success" role="progressbar" style="width: 0%;" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100">0%</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="d-flex justify-content-end mt-3">
+                        <button class="btn btn-outline-secondary mr-2" t-on-click="() => this.state.showForm = false">Cancel</button>
+                        <button class="btn btn-dark px-4" t-on-click="saveTarget">Save Target</button>
+                    </div>
+                </div>
+            </t>
+
+            <!-- === SCHEDULES DATA TABLE === -->
+            <t t-if="!this.state.showForm and this.state.activeMainTab === 'schedules'">
+                <div class="table-responsive">
+                    <table class="table table-hover mb-0">
+                        <thead class="bg-light text-uppercase small font-weight-bold text-muted">
+                            <tr>
+                                <th class="pl-4">Day</th>
+                                <th>Route Info</th>
+                                <th class="text-center">Shops</th>
+                                <th class="text-center">Progress</th>
+                                <th class="text-right pr-4">Status</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <t t-if="currentBookerSchedules.length === 0">
+                                <tr><td colspan="5" class="text-center py-4 text-muted">No schedules configured for this booker.</td></tr>
+                            </t>
+                            <t t-foreach="currentBookerSchedules" t-as="sched" t-key="sched.id">
+                                <tr>
+                                    <td class="pl-4 align-middle font-weight-bold"><t t-esc="sched.day"/></td>
+                                    <td class="align-middle">
+                                        <div class="text-dark"><t t-esc="sched.route"/></div>
+                                        <small class="text-muted"><t t-esc="sched.zone"/></small>
+                                    </td>
+                                    <td class="align-middle text-center"><t t-esc="sched.shops"/></td>
+                                    <td class="align-middle text-center font-weight-bold text-success"><t t-esc="sched.progress"/></td>
+                                    <td class="align-middle text-right pr-4">
+                                        <span t-attf-class="badge #{sched.status === 'Active' ? 'badge-success' : 'badge-secondary'} px-2 py-1"><t t-esc="sched.status"/></span>
+                                    </td>
+                                </tr>
+                            </t>
+                        </tbody>
+                    </table>
+                </div>
+            </t>
+
+            <!-- === TARGETS DATA TABLE === -->
+            <t t-if="!this.state.showForm and this.state.activeMainTab === 'targets'">
+                <div class="table-responsive">
+                    <table class="table table-hover mb-0">
+                        <thead class="bg-light text-uppercase small font-weight-bold text-muted">
+                            <tr>
+                                <th class="pl-4">Period</th>
+                                <th>Target Goal</th>
+                                <th>Achieved</th>
+                                <th>Progress</th>
+                                <th class="text-right pr-4">Status</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <t t-if="currentBookerTargets.length === 0">
+                                <tr><td colspan="5" class="text-center py-4 text-muted">No targets configured for this booker.</td></tr>
+                            </t>
+                            <t t-foreach="currentBookerTargets" t-as="tgt" t-key="tgt.id">
+                                <tr>
+                                    <td class="pl-4 align-middle">
+                                        <div class="font-weight-bold small"><t t-esc="tgt.startDate"/></div>
+                                        <div class="text-muted small">to <t t-esc="tgt.endDate"/></div>
+                                    </td>
+                                    <td class="align-middle">
+                                        <div class="text-dark font-weight-bold text-capitalize"><t t-esc="tgt.type.replace('_', ' ')"/></div>
+                                        <small class="text-muted">
+                                            <t t-esc="tgt.amount"/> 
+                                            <t t-if="tgt.currency"> <t t-esc="tgt.currency"/></t>
+                                            <t t-if="tgt.product"> (<t t-esc="tgt.product"/>)</t>
+                                        </small>
+                                    </td>
+                                    <td class="align-middle font-weight-bold"><t t-esc="tgt.achievedAmount"/></td>
+                                    <td class="align-middle">
+                                        <div class="progress" style="height: 6px; width: 100px;">
+                                            <div class="progress-bar bg-success" role="progressbar" style="width: 0%;"></div>
+                                        </div>
+                                        <small class="font-weight-bold text-success mt-1 d-block"><t t-esc="tgt.progressPercentage"/></small>
+                                    </td>
+                                    <td class="align-middle text-right pr-4">
+                                        <span t-attf-class="badge #{tgt.status === 'Active' ? 'badge-success' : 'badge-secondary'} px-2 py-1"><t t-esc="tgt.status"/></span>
+                                    </td>
+                                </tr>
+                            </t>
+                        </tbody>
+                    </table>
+                </div>
+            </t>
+        </t>
+    </div>
+`;

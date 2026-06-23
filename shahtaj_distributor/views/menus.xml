@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- 1. The Action -->
+<record id="action_shahtaj_dashboard" model="ir.actions.client">
+    <!-- You can leave the name here, it won't show in the navbar anymore -->
+    <field name="name">Distributor Portal</field> 
+    <field name="tag">shahtaj_dashboard_tag</field>
+</record>
+
+<!-- 2. The Root Menu (App Icon) WITH the action directly attached -->
+<menuitem id="menu_shahtaj_root" 
+          name="Shahtaj Oil" 
+          action="action_shahtaj_dashboard" 
+          web_icon="shahtaj_distributor,static/description/icon.png"/>
+</odoo>
