@@ -270,14 +270,24 @@
                                     </td>
                                     <td class="align-middle text-primary fw-bold"><t t-esc="shop.route_id ? shop.route_id[1] : 'Unassigned'"/></td>
                                     <td class="align-middle text-center">
-                                        <span t-attf-class="small fw-bold #{shop.shop_approval_state === 'approved' ? 'text-success' : 'text-warning'}">
+                                        <span t-attf-class="badge #{shop.shop_approval_state === 'approved' ? 'bg-success' : (shop.shop_approval_state === 'rejected' ? 'bg-danger' : 'bg-warning text-dark')}">
                                             <t t-esc="shop.shop_approval_state.toUpperCase()"/>
                                         </span>
                                     </td>
                                     <td class="align-middle text-end pe-4">
-                                        <button class="btn btn-sm btn-outline-primary" t-on-click="() => this.viewShopDetails(shop.id)">
-                                            View Details
-                                        </button>
+                                        <t t-if="shop.shop_approval_state === 'pending'">
+                                            <button class="btn btn-sm btn-success me-2 fw-bold" t-on-click="() => this.approveShop(shop.id)">
+                                                Approve
+                                            </button>
+                                            <button class="btn btn-sm btn-outline-danger fw-bold" t-on-click="() => this.rejectShop(shop.id)">
+                                                Reject
+                                            </button>
+                                        </t>
+                                        <t t-else="">
+                                            <button class="btn btn-sm btn-outline-primary" t-on-click="() => this.viewShopDetails(shop.id)">
+                                                View Details
+                                            </button>
+                                        </t>
                                     </td>
                                 </tr>
                             </t>
@@ -412,7 +422,7 @@
 
                     <div class="d-flex justify-content-end pb-4 mt-3">
                         <button class="btn btn-outline-secondary px-4 me-2 fw-bold" t-on-click="() => this.state.showShopForm = false">Discard</button>
-                        <button class="btn btn-dark px-5 text-white fw-bold" t-on-click="saveShop">Register &amp; Approve Shop</button>
+                        <button class="btn btn-dark px-5 text-white fw-bold" t-on-click="saveShop">Register Shop &amp; Submit for Review</button>
                     </div>
                 </div>
             </t>

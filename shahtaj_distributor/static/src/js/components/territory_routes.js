@@ -70,19 +70,15 @@ export class TerritoryRoutes extends Component {
     }
 
     onZoneChange() {
-        // Reset the child dropdown when the parent zone changes
         this.state.shopForm.route_id = '';
     }
 
-    // --- Computed Properties ---
     get filteredRoutes() {
         if (!this.state.shopForm.zone_id) return [];
         const selectedZoneId = parseInt(this.state.shopForm.zone_id);
-        // Odoo Many2one fields return as [id, "name"] tuples
         return this.state.routes.filter(r => r.zone_id && r.zone_id[0] === selectedZoneId);
     }
 
-    // --- File Handling Logic ---
     onFileChange(ev, fieldName) {
         const file = ev.target.files[0];
         if (!file) return;
@@ -98,7 +94,6 @@ export class TerritoryRoutes extends Component {
         reader.readAsDataURL(file);
     }
 
-    // --- Shop Details Logic ---
     async viewShopDetails(shopId) {
         const details = await this.orm.read(
             "res.partner",
@@ -117,6 +112,25 @@ export class TerritoryRoutes extends Component {
 
     closeShopDetails() {
         this.state.selectedShopDetails = null;
+    }
+
+    // --- Approval Actions ---
+    async approveShop(shopId) {
+        try {
+            await this.orm.call("res.partner", "action_approve_shop", [[shopId]]);
+            await this.fetchDashboardData();
+        } catch (error) {
+            alert("Failed to approve shop: " + (error.data?.message || error.message));
+        }
+    }
+
+    async rejectShop(shopId) {
+        try {
+            await this.orm.call("res.partner", "action_reject_shop", [[shopId]]);
+            await this.fetchDashboardData();
+        } catch (error) {
+            alert("Failed to reject shop: " + (error.data?.message || error.message));
+        }
     }
 
     // --- Database Write Logic ---
@@ -162,7 +176,7 @@ export class TerritoryRoutes extends Component {
         await this.orm.create("res.partner", [{
             is_shahtaj_shop: true,
             company_type: 'company',
-            shop_approval_state: 'approved',
+            shop_approval_state: 'pending', // Keeps shop pending for new entries
             name: this.state.shopForm.name,
             owner_name: this.state.shopForm.owner_name,
             owner_phone: this.state.shopForm.owner_phone,
