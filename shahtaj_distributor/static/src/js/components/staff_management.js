@@ -14,7 +14,6 @@ export class StaffManagement extends Component {
             showForm: false,
             isLoading: false,
             
-            // Real Data Arrays
             staffList: [],
             detailSchedules: [],
             detailTargets: [],
@@ -33,7 +32,6 @@ export class StaffManagement extends Component {
         });
     }
 
-    // --- Data Fetching ---
     async fetchStaffData() {
         const bookers = await this.orm.searchRead(
             "res.users",
@@ -68,14 +66,12 @@ export class StaffManagement extends Component {
     async openDetails(staff) {
         this.state.selectedStaff = staff;
         
-        // 1. Fetch Weekly Schedules
         const schedules = await this.orm.searchRead(
             "shahtaj.weekly.schedule",
             [["order_booker_id", "=", staff.id]],
-            ["id", "day_of_week", "route_id", "zone_id", "active"] // Fixed 'day' to 'day_of_week'
+            ["id", "day_of_week", "route_id", "zone_id", "active"] 
         );
 
-        // Map numeric day values to string labels
         const dayMap = {
             '0': 'Monday', '1': 'Tuesday', '2': 'Wednesday', 
             '3': 'Thursday', '4': 'Friday', '5': 'Saturday', '6': 'Sunday'
@@ -86,7 +82,6 @@ export class StaffManagement extends Component {
             day: dayMap[s.day_of_week] || s.day_of_week
         }));
 
-        // 2. Fetch Performance Targets
         this.state.detailTargets = await this.orm.searchRead(
             "shahtaj.visit.target",
             [["order_booker_id", "=", staff.id]],
@@ -97,7 +92,6 @@ export class StaffManagement extends Component {
         this.state.detailTab = 'schedules';
     }
 
-    // --- UI Controls ---
     switchTab(tabName) {
         this.state.activeTab = tabName;
         this.state.viewMode = 'list';
@@ -115,7 +109,7 @@ export class StaffManagement extends Component {
         this.state.showForm = true;
     }
 
-    // --- Database Creation ---
+    // --- UPDATED CREATION LOGIC ---
     async saveStaff() {
         if (!this.state.formData.name || !this.state.formData.email || !this.state.formData.password) {
             alert("Name, Email, and Password are required.");
@@ -123,27 +117,13 @@ export class StaffManagement extends Component {
         }
 
         try {
-            // Find the ID of the 'Order Booker' access group dynamically
-            const groupData = await this.orm.searchRead(
-                "ir.model.data",
-                [["module", "=", "shahtaj_order_booker"], ["name", "=", "group_shahtaj_order_booker"]],
-                ["res_id"]
-            );
-            
-            const payload = {
+            // Call the custom sudo-enabled Python endpoint instead of standard orm.create
+            await this.orm.call("res.users", "action_create_order_booker_spa", [{
                 name: this.state.formData.name,
                 login: this.state.formData.email,
                 password: this.state.formData.password,
-                shahtaj_employee_code: this.state.formData.employee_code,
-            };
-
-            // Link the group to the user via the Many2many relationship
-            if (groupData.length > 0) {
-                payload.groups_id = [[4, groupData[0].res_id]];
-            }
-
-            // Create the record directly via ORM
-            await this.orm.create("res.users", [payload]);
+                employee_code: this.state.formData.employee_code,
+            }]);
 
             this.state.showForm = false;
             await this.fetchStaffData();

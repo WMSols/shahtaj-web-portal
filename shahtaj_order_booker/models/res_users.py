@@ -290,4 +290,29 @@ class ResUsers(models.Model):
             ],
             'target': 'current',
         }
+    @api.model
+    def action_create_order_booker_spa(self, vals):
+        """
+        Secure endpoint for OWL SPA to create order bookers.
+        Uses sudo() to bypass the standard res.partner creation restrictions 
+        that block non-admin Distributors.
+        """
+        # 1. Security Check: Ensure the user calling this is actually a distributor
+        if not self.env.user.has_group('shahtaj_order_booker.group_shahtaj_distributor'):
+            from odoo.exceptions import AccessError
+            raise AccessError(_("Only authorized distributors can create order bookers."))
+
+        # 2. Get the specific Order Booker access group
+        booker_group = self.env.ref('shahtaj_order_booker.group_shahtaj_order_booker', raise_if_not_found=False)
+
+        # 3. Create the user as superadmin (sudo) to bypass res.partner blocks
+        new_user = self.sudo().create({
+            'name': vals.get('name'),
+            'login': vals.get('login'),
+            'password': vals.get('password'),
+            'shahtaj_employee_code': vals.get('employee_code'),
+            'groups_id': [(4, booker_group.id)] if booker_group else [],
+        })
+        
+        return new_user.id
     

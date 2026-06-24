@@ -117,52 +117,115 @@
         </t>
 
         <t t-if="this.state.activeSubTab === 'checkins'">
-            <div class="p-3 bg-light border-bottom d-flex gap-2">
-                <input type="text" class="form-control form-control-sm w-50" placeholder="Search Shop or Booker..." 
-                       t-model="this.state.checkinFilters.search" t-on-input="() => this.state.checkinPage = 1"/>
-                <select class="form-select form-select-sm w-25" t-model="this.state.checkinFilters.status" t-on-change="() => this.state.checkinPage = 1">
-                    <option value="">All Feed Statuses</option>
-                    <option value="Checked In">Active (Checked In)</option>
-                    <option value="Checked Out">Completed (Checked Out)</option>
-                </select>
-            </div>
             
-            <div class="list-group list-group-flush">
-                <t t-if="this.paginatedCheckins.length === 0">
-                    <div class="p-4 text-center text-muted">No check-in activity found.</div>
-                </t>
-                <t t-foreach="this.paginatedCheckins" t-as="log" t-key="log.id">
-                    <div class="list-group-item list-group-item-action d-flex justify-content-between align-items-center p-3">
-                        <div class="d-flex align-items-center">
-                            <div class="bg-light rounded-circle d-flex justify-content-center align-items-center me-3 shadow-sm border" style="width: 45px; height: 45px;">
-                                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-map-pin text-primary"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg>
+            <t t-if="!this.state.selectedCheckin">
+                <div class="p-3 bg-light border-bottom d-flex gap-2">
+                    <input type="text" class="form-control form-control-sm w-50" placeholder="Search Shop or Booker..." 
+                           t-model="this.state.checkinFilters.search" t-on-input="() => this.state.checkinPage = 1"/>
+                    <select class="form-select form-select-sm w-25" t-model="this.state.checkinFilters.status" t-on-change="() => this.state.checkinPage = 1">
+                        <option value="">All Feed Statuses</option>
+                        <option value="Checked In">Active (Checked In)</option>
+                        <option value="Checked Out">Completed (Checked Out)</option>
+                        <option value="Cancelled">Cancelled</option>
+                    </select>
+                </div>
+                
+                <div class="list-group list-group-flush">
+                    <t t-if="this.paginatedCheckins.length === 0">
+                        <div class="p-4 text-center text-muted">No check-in activity found.</div>
+                    </t>
+                    <t t-foreach="this.paginatedCheckins" t-as="log" t-key="log.id">
+                        <div class="list-group-item list-group-item-action d-flex justify-content-between align-items-center p-3">
+                            <div class="d-flex align-items-center">
+                                <div class="bg-light rounded-circle d-flex justify-content-center align-items-center me-3 shadow-sm border" style="width: 45px; height: 45px;">
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-map-pin text-primary"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg>
+                                </div>
+                                <div>
+                                    <h6 class="mb-0 fw-bold"><t t-esc="log.shop"/></h6>
+                                    <small class="text-muted"><t t-esc="log.booker"/> • <t t-esc="log.time"/></small>
+                                </div>
                             </div>
-                            <div>
-                                <h6 class="mb-0 fw-bold"><t t-esc="log.shop"/></h6>
-                                <small class="text-muted"><t t-esc="log.booker"/> • <t t-esc="log.time"/></small>
+                            <div class="text-end d-flex align-items-center">
+                                <div class="me-3 text-end">
+                                    <span t-attf-class="badge #{log.status === 'Checked In' ? 'bg-success text-white shadow-sm' : log.status === 'Cancelled' ? 'bg-danger text-white shadow-sm' : 'bg-secondary text-white shadow-sm'} p-2 fs-6 mb-1 d-inline-block">
+                                        <t t-esc="log.status"/>
+                                    </span>
+                                    <div class="text-muted fw-bold small"><t t-esc="log.duration"/></div>
+                                </div>
+                                <button class="btn btn-sm btn-outline-dark fw-bold ms-2" t-on-click="() => this.viewCheckin(log)">
+                                    View Details
+                                </button>
                             </div>
                         </div>
-                        <div class="text-end">
-                            <span t-attf-class="badge #{log.status === 'Checked In' ? 'bg-success text-white shadow-sm' : 'bg-secondary text-white shadow-sm'} p-2 fs-6 mb-1 d-inline-block">
-                                <t t-esc="log.status"/>
+                    </t>
+                </div>
+
+                <div class="p-3 border-top d-flex justify-content-between align-items-center bg-light">
+                    <small class="text-muted fw-bold">
+                        Showing <t t-esc="this.filteredCheckins.length === 0 ? 0 : ((this.state.checkinPage - 1) * this.state.itemsPerPage) + 1"/> to 
+                        <t t-esc="Math.min(this.state.checkinPage * this.state.itemsPerPage, this.filteredCheckins.length)"/> of <t t-esc="this.filteredCheckins.length"/>
+                    </small>
+                    <div class="btn-group shadow-sm">
+                        <button class="btn btn-sm btn-white border" t-on-click="() => this.changePage('checkin', -1)" t-att-disabled="this.state.checkinPage === 1">Previous</button>
+                        <button class="btn btn-sm btn-light border px-3 fw-bold disabled"><t t-esc="this.state.checkinPage"/> / <t t-esc="this.checkinTotalPages"/></button>
+                        <button class="btn btn-sm btn-white border" t-on-click="() => this.changePage('checkin', 1)" t-att-disabled="this.state.checkinPage === this.checkinTotalPages">Next</button>
+                    </div>
+                </div>
+            </t>
+
+            <t t-else="">
+                <div class="p-4" style="background-color: #f8fafc;">
+                    <div class="d-flex justify-content-between align-items-center mb-4">
+                        <button class="btn btn-sm btn-light border shadow-sm fw-bold text-dark d-flex align-items-center" t-on-click="closeCheckin">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-arrow-left me-1"><path d="m12 19-7-7 7-7"/><path d="M19 12H5"/></svg>
+                            Back to List
+                        </button>
+                        <div>
+                            <span t-attf-class="badge #{this.state.selectedCheckin.status === 'Checked In' ? 'bg-success' : this.state.selectedCheckin.status === 'Cancelled' ? 'bg-danger' : 'bg-secondary'} text-white p-2 fs-6 text-uppercase shadow-sm" style="letter-spacing: 1px;">
+                                <t t-esc="this.state.selectedCheckin.status"/>
                             </span>
-                            <div class="text-muted fw-bold small"><t t-esc="log.duration"/></div>
                         </div>
                     </div>
-                </t>
-            </div>
 
-            <div class="p-3 border-top d-flex justify-content-between align-items-center bg-light">
-                <small class="text-muted fw-bold">
-                    Showing <t t-esc="this.filteredCheckins.length === 0 ? 0 : ((this.state.checkinPage - 1) * this.state.itemsPerPage) + 1"/> to 
-                    <t t-esc="Math.min(this.state.checkinPage * this.state.itemsPerPage, this.filteredCheckins.length)"/> of <t t-esc="this.filteredCheckins.length"/>
-                </small>
-                <div class="btn-group shadow-sm">
-                    <button class="btn btn-sm btn-white border" t-on-click="() => this.changePage('checkin', -1)" t-att-disabled="this.state.checkinPage === 1">Previous</button>
-                    <button class="btn btn-sm btn-light border px-3 fw-bold disabled"><t t-esc="this.state.checkinPage"/> / <t t-esc="this.checkinTotalPages"/></button>
-                    <button class="btn btn-sm btn-white border" t-on-click="() => this.changePage('checkin', 1)" t-att-disabled="this.state.checkinPage === this.checkinTotalPages">Next</button>
+                    <div class="row">
+                        <div class="col-md-6 mb-3 mb-md-0">
+                            <div class="card border-0 shadow-sm p-4 h-100 rounded-3">
+                                <h6 class="text-muted text-uppercase small fw-bold mb-3">Visit Details</h6>
+                                <h5 class="fw-bold text-dark mb-1"><t t-esc="this.state.selectedCheckin.shop"/></h5>
+                                <p class="text-muted mb-1 small">
+                                    <strong>Booker:</strong> <t t-esc="this.state.selectedCheckin.booker"/>
+                                </p>
+                                <p class="text-muted mb-0 small">
+                                    <strong>Task Reference:</strong> <t t-esc="this.state.selectedCheckin.taskRef"/>
+                                </p>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="card border-0 shadow-sm p-4 h-100 rounded-3">
+                                <h6 class="text-muted text-uppercase small fw-bold mb-3">Time &amp; Outcome</h6>
+                                <div class="d-flex justify-content-between mb-2 pb-2 border-bottom">
+                                    <span class="text-muted small">Started At:</span>
+                                    <span class="fw-bold text-dark"><t t-esc="this.state.selectedCheckin.time"/></span>
+                                </div>
+                                <div class="d-flex justify-content-between mb-2 pb-2 border-bottom">
+                                    <span class="text-muted small">Ended At:</span>
+                                    <span class="fw-bold text-dark"><t t-esc="this.state.selectedCheckin.endTime"/></span>
+                                </div>
+                                <div class="d-flex justify-content-between mb-2 pb-2 border-bottom">
+                                    <span class="text-muted small">Duration:</span>
+                                    <span class="fw-bold text-dark"><t t-esc="this.state.selectedCheckin.duration"/></span>
+                                </div>
+                                <div class="d-flex justify-content-between">
+                                    <span class="text-muted small">Visit Outcome:</span>
+                                    <span t-attf-class="fw-bold #{this.state.selectedCheckin.outcome === 'Order Placed' ? 'text-success' : 'text-warning'}">
+                                        <t t-esc="this.state.selectedCheckin.outcome"/>
+                                    </span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
                 </div>
-            </div>
+            </t>
         </t>
 
         <t t-if="this.state.activeSubTab === 'orders'">

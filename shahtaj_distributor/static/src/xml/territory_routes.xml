@@ -270,7 +270,7 @@
                                     </td>
                                     <td class="align-middle text-primary fw-bold"><t t-esc="shop.route_id ? shop.route_id[1] : 'Unassigned'"/></td>
                                     <td class="align-middle text-center">
-                                        <span t-attf-class="badge #{shop.shop_approval_state === 'approved' ? 'bg-success' : (shop.shop_approval_state === 'rejected' ? 'bg-danger' : 'bg-warning text-dark')}">
+                                        <span t-attf-class="badge text-white #{shop.shop_approval_state === 'approved' ? 'bg-success' : (shop.shop_approval_state === 'rejected' ? 'bg-danger' : 'bg-warning text-dark')}">
                                             <t t-esc="shop.shop_approval_state.toUpperCase()"/>
                                         </span>
                                     </td>

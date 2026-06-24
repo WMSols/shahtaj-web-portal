@@ -1,12 +1,16 @@
 /** @odoo-module **/
 
-import { Component, useState, xml } from "@odoo/owl";
+import { Component, useState, onWillStart } from "@odoo/owl";
+import { useService } from "@web/core/utils/hooks";
 
 export class OperationsTracking extends Component {
     setup() {
+        this.orm = useService("orm");
+
         this.state = useState({
             activeSubTab: 'orders', // Defaulted to orders
             selectedOrder: null,    // Tracks which order is currently open
+            selectedCheckin: null,  // Tracks which check-in is currently open
             
             // --- FILTER & PAGINATION STATE ---
             itemsPerPage: 5,
@@ -32,16 +36,8 @@ export class OperationsTracking extends Component {
                 { id: "DLV-0098", driver: "Hamza Farooq", route: "Route B - North", status: "In-Transit", progress: "85%", last_update: "5 mins ago" }
             ],
 
-            // Mock Data: Geo-tagged Check-ins (Expanded)
-            checkins: [
-                { id: 1, time: "10:15 AM", booker: "Ali Khan", shop: "Al-Hafeez Supermart", status: "Checked Out", duration: "14 mins" },
-                { id: 2, time: "10:45 AM", booker: "Ali Khan", shop: "Bismillah General Store", status: "Checked In", duration: "Active Now" },
-                { id: 3, time: "09:30 AM", booker: "Usman Tariq", shop: "Metro Cash & Carry", status: "Checked Out", duration: "45 mins" },
-                { id: 4, time: "11:00 AM", booker: "Zahid Qureshi", shop: "Madina Traders", status: "Checked In", duration: "Active Now" },
-                { id: 5, time: "11:15 AM", booker: "Ali Khan", shop: "Kashmir Mart", status: "Checked Out", duration: "10 mins" },
-                { id: 6, time: "11:30 AM", booker: "Usman Tariq", shop: "Awais Kiryana", status: "Checked Out", duration: "20 mins" },
-                { id: 7, time: "11:45 AM", booker: "Zahid Qureshi", shop: "City Center Mart", status: "Checked In", duration: "Active Now" }
-            ],
+            // REAL DATA: Geo-tagged Check-ins
+            checkins: [],
 
             // Mock Data: Expanded Live Field Orders
             orders: [
@@ -54,11 +50,62 @@ export class OperationsTracking extends Component {
                 { id: "SO-1046", shop: "Metro Cash & Carry", booker: "Usman Tariq", address: "Main Highway", phone: "0300-7776666", date: "21-Jun-2026 05:30 PM", items: 5, total: "Rs. 22,500", status: "Delivered", lines: [{ product: "Shahtaj Premium Cooking Oil 5L", qty: 5, unit: "Carton", price: "4,500", subtotal: "22,500" }] }
             ]
         });
+
+        onWillStart(async () => {
+            await this.fetchLiveVisits();
+        });
+    }
+
+    // --- FETCH LIVE VISITS FROM BACKEND ---
+    async fetchLiveVisits() {
+        const visits = await this.orm.searchRead(
+            "shahtaj.visit",
+            [],
+            ["id", "shop_id", "order_booker_id", "started_at", "ended_at", "state", "outcome", "visit_task_id"]
+        );
+
+        this.state.checkins = visits.map(v => {
+            let durationStr = "Active Now";
+            if (v.started_at && v.ended_at) {
+                // Odoo returns dates as UTC strings like "2026-06-24 10:00:00"
+                // Replacing space with T makes it parseable across browsers
+                const start = new Date(v.started_at.replace(' ', 'T') + "Z");
+                const end = new Date(v.ended_at.replace(' ', 'T') + "Z");
+                const diffMs = end - start;
+                const diffMins = Math.round(diffMs / 60000);
+                durationStr = `${diffMins} mins`;
+            }
+
+            // Map Odoo technical states to friendly UI states
+            let displayStatus = 'Unknown';
+            if (v.state === 'in_progress') displayStatus = 'Checked In';
+            else if (v.state === 'completed') displayStatus = 'Checked Out';
+            else if (v.state === 'cancelled') displayStatus = 'Cancelled';
+
+            // Format outcome
+            let displayOutcome = v.outcome;
+            if (v.outcome === 'none') displayOutcome = 'In Progress';
+            else if (v.outcome === 'order') displayOutcome = 'Order Placed';
+            else if (v.outcome === 'no_order') displayOutcome = 'No Order';
+
+            return {
+                id: v.id,
+                shop: v.shop_id ? v.shop_id[1] : 'Unknown Shop',
+                booker: v.order_booker_id ? v.order_booker_id[1] : 'Unknown Booker',
+                time: v.started_at || 'Pending',
+                endTime: v.ended_at || 'In Progress',
+                status: displayStatus,
+                duration: durationStr,
+                outcome: displayOutcome,
+                taskRef: v.visit_task_id ? v.visit_task_id[1] : 'Direct Visit'
+            };
+        });
     }
 
     setSubTab(tabName) {
         this.state.activeSubTab = tabName;
         this.state.selectedOrder = null;
+        this.state.selectedCheckin = null;
     }
 
     // --- DELIVERY GETTERS ---
@@ -124,6 +171,9 @@ export class OperationsTracking extends Component {
 
     viewOrder(order) { this.state.selectedOrder = order; }
     closeOrder() { this.state.selectedOrder = null; }
+
+    viewCheckin(log) { this.state.selectedCheckin = log; }
+    closeCheckin() { this.state.selectedCheckin = null; }
 }
 
 OperationsTracking.template = "shahtaj_distributor.OperationsTracking"
