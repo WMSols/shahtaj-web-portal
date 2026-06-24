@@ -1,99 +1,196 @@
 /** @odoo-module **/
 
-import { Component, useState, xml } from "@odoo/owl";
+import { Component, useState, onWillStart } from "@odoo/owl";
+import { useService } from "@web/core/utils/hooks";
 
 export class TerritoryRoutes extends Component {
     setup() {
+        this.orm = useService("orm");
+
         this.state = useState({
-            activeSubTab: 'routes', // Default tab
+            activeSubTab: 'routes', 
             
-            // UI Form Toggles
             showAreaForm: false,
             showRouteForm: false,
             showShopForm: false,
+            selectedShopDetails: null,
 
-            // Form Data States (Upgraded with new fields)
-            areaForm: { name: '', code: '', is_active: true },
-            routeForm: { name: '', area: '', booker: '', is_active: true },
+            // Form Data States
+            areaForm: { name: '', is_active: true },
+            routeForm: { name: '', zone_id: '', is_active: true }, 
             shopForm: { 
-                name: '', owner: '', phone: '', address: '',
-                area: '', route: '', lat: '', lng: '', 
+                name: '', owner_name: '', owner_phone: '', address: '',
+                zone_id: '', route_id: '', lat: '', lng: '', 
                 creditLimit: '', legacyBalance: '', outstandingBalance: '',
-                cnicFront: null, cnicBack: null, ownerPhoto: null, exteriorPhoto: null 
+                owner_cnic_front: null, owner_cnic_back: null, 
+                owner_photo: null, shop_exterior_photo: null,
+                preview_owner_cnic_front: null, preview_owner_cnic_back: null, 
+                preview_owner_photo: null, preview_shop_exterior_photo: null
             },
 
-            // Mock Data: Geographical Areas
-            areas: [
-                { id: "AR-01", name: "North Zone - City Center", code: "NZ-CC", routes: 4, status: "Active" },
-                { id: "AR-02", name: "South Zone - Industrial", code: "SZ-IND", routes: 2, status: "Active" },
-                { id: "AR-03", name: "East Zone - Suburbs", code: "EZ-SUB", routes: 1, status: "Pending" }
-            ],
+            // Real Data Arrays
+            areas: [],
+            routes: [],
+            shops: []
+        });
 
-            // Mock Data: Routes & Booker Assignments
-            routes: [
-                { id: "RT-101", name: "Commercial Market Main", area: "North Zone - City Center", booker: "Ali Khan", shops: 24, status: "Active" },
-                { id: "RT-102", name: "Phase 1 Residential", area: "North Zone - City Center", booker: "Usman Tariq", shops: 18, status: "Active" },
-                { id: "RT-201", name: "Factory Area Link", area: "South Zone - Industrial", booker: "Unassigned", shops: 8, status: "Inactive" }
-            ],
-
-            // Mock Data: Mapped Shops
-            shops: [
-                { id: "SH-5042", name: "Bismillah General Store", route: "Commercial Market Main", owner: "Haji Tariq", phone: "0300-1234567", status: "Verified" },
-                { id: "SH-5043", name: "Al-Hafeez Supermart", route: "Phase 1 Residential", owner: "Rizwan Ahmed", phone: "0333-9876543", status: "Verified" },
-                { id: "SH-5044", name: "Madina Traders", route: "Factory Area Link", owner: "Kamran", phone: "0321-5558888", status: "Pending Review" }
-            ]
+        onWillStart(async () => {
+            await this.fetchDashboardData();
         });
     }
 
+    // --- Data Fetching Logic ---
+    async fetchDashboardData() {
+        this.state.areas = await this.orm.searchRead(
+            "shahtaj.zone",
+            [], 
+            ["id", "name", "active", "route_count"]
+        );
+
+        this.state.routes = await this.orm.searchRead(
+            "shahtaj.route",
+            [],
+            ["id", "name", "zone_id", "shop_count", "active"]
+        );
+
+        this.state.shops = await this.orm.searchRead(
+            "res.partner",
+            [["is_shahtaj_shop", "=", true]], 
+            ["id", "name", "owner_name", "phone", "route_id", "shop_approval_state"]
+        );
+    }
+
+    // --- UI Toggles & Handlers ---
     setSubTab(tabName) {
         this.state.activeSubTab = tabName;
         this.state.showAreaForm = false;
         this.state.showRouteForm = false;
         this.state.showShopForm = false;
+        this.state.selectedShopDetails = null;
     }
 
-    saveArea() {
-        this.state.areas.push({
-            id: `AR-0${this.state.areas.length + 1}`,
+    onZoneChange() {
+        // Reset the child dropdown when the parent zone changes
+        this.state.shopForm.route_id = '';
+    }
+
+    // --- Computed Properties ---
+    get filteredRoutes() {
+        if (!this.state.shopForm.zone_id) return [];
+        const selectedZoneId = parseInt(this.state.shopForm.zone_id);
+        // Odoo Many2one fields return as [id, "name"] tuples
+        return this.state.routes.filter(r => r.zone_id && r.zone_id[0] === selectedZoneId);
+    }
+
+    // --- File Handling Logic ---
+    onFileChange(ev, fieldName) {
+        const file = ev.target.files[0];
+        if (!file) return;
+
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            const dataUrl = e.target.result;
+            const base64Data = dataUrl.split(',')[1];
+            
+            this.state.shopForm[fieldName] = base64Data;
+            this.state.shopForm[`preview_${fieldName}`] = dataUrl;
+        };
+        reader.readAsDataURL(file);
+    }
+
+    // --- Shop Details Logic ---
+    async viewShopDetails(shopId) {
+        const details = await this.orm.read(
+            "res.partner",
+            [shopId],
+            [
+                "id", "name", "owner_name", "phone", "partner_latitude", "partner_longitude",
+                "credit_limit", "legacy_balance", "outstanding_balance", "route_id", "zone_id",
+                "owner_cnic_front", "owner_cnic_back", "owner_photo", "shop_exterior_photo", 
+                "shop_approval_state"
+            ]
+        );
+        if (details.length > 0) {
+            this.state.selectedShopDetails = details[0];
+        }
+    }
+
+    closeShopDetails() {
+        this.state.selectedShopDetails = null;
+    }
+
+    // --- Database Write Logic ---
+    async saveArea() {
+        if (!this.state.areaForm.name) return;
+
+        await this.orm.create("shahtaj.zone", [{
             name: this.state.areaForm.name,
-            code: this.state.areaForm.code,
-            routes: 0,
-            status: this.state.areaForm.is_active ? "Active" : "Inactive"
-        });
+            active: this.state.areaForm.is_active
+        }]);
+
         this.state.showAreaForm = false;
-        this.state.areaForm = { name: '', code: '', is_active: true };
+        this.state.areaForm = { name: '', is_active: true };
+        await this.fetchDashboardData(); 
     }
 
-    saveRoute() {
-        this.state.routes.push({
-            id: `RT-${this.state.routes.length + 1}01`,
+    async saveRoute() {
+        if (!this.state.routeForm.name || !this.state.routeForm.zone_id) {
+            alert("Route Name and Parent Zone are required.");
+            return;
+        }
+
+        await this.orm.create("shahtaj.route", [{
             name: this.state.routeForm.name,
-            area: this.state.routeForm.area,
-            booker: this.state.routeForm.booker || "Unassigned",
-            shops: 0,
-            status: this.state.routeForm.is_active ? "Active" : "Inactive"
-        });
+            zone_id: parseInt(this.state.routeForm.zone_id),
+            active: this.state.routeForm.is_active
+        }]);
+
         this.state.showRouteForm = false;
-        this.state.routeForm = { name: '', area: '', booker: '', is_active: true };
+        this.state.routeForm = { name: '', zone_id: '', is_active: true };
+        await this.fetchDashboardData();
     }
 
-    saveShop() {
-        this.state.shops.push({
-            id: `SH-50${this.state.shops.length + 42}`,
+    async saveShop() {
+        const lat = parseFloat(this.state.shopForm.lat);
+        const lng = parseFloat(this.state.shopForm.lng);
+
+        if (!this.state.shopForm.name || !this.state.shopForm.owner_name || isNaN(lat) || isNaN(lng)) {
+            alert("Please fill all required fields including valid GPS coordinates.");
+            return;
+        }
+
+        await this.orm.create("res.partner", [{
+            is_shahtaj_shop: true,
+            company_type: 'company',
+            shop_approval_state: 'approved',
             name: this.state.shopForm.name,
-            route: this.state.shopForm.route,
-            owner: this.state.shopForm.owner,
-            phone: this.state.shopForm.phone,
-            status: "Pending Review"
-        });
+            owner_name: this.state.shopForm.owner_name,
+            owner_phone: this.state.shopForm.owner_phone,
+            phone: this.state.shopForm.owner_phone, 
+            zone_id: this.state.shopForm.zone_id ? parseInt(this.state.shopForm.zone_id) : false,
+            route_id: this.state.shopForm.route_id ? parseInt(this.state.shopForm.route_id) : false,
+            partner_latitude: lat,
+            partner_longitude: lng,
+            credit_limit: parseFloat(this.state.shopForm.creditLimit) || 0.0,
+            legacy_balance: parseFloat(this.state.shopForm.legacyBalance) || 0.0,
+            owner_cnic_front: this.state.shopForm.owner_cnic_front,
+            owner_cnic_back: this.state.shopForm.owner_cnic_back,
+            owner_photo: this.state.shopForm.owner_photo,
+            shop_exterior_photo: this.state.shopForm.shop_exterior_photo
+        }]);
+
         this.state.showShopForm = false;
         this.state.shopForm = { 
-            name: '', owner: '', phone: '', address: '',
-            area: '', route: '', lat: '', lng: '', 
+            name: '', owner_name: '', owner_phone: '', address: '',
+            zone_id: '', route_id: '', lat: '', lng: '', 
             creditLimit: '', legacyBalance: '', outstandingBalance: '',
-            cnicFront: null, cnicBack: null, ownerPhoto: null, exteriorPhoto: null 
+            owner_cnic_front: null, owner_cnic_back: null, 
+            owner_photo: null, shop_exterior_photo: null,
+            preview_owner_cnic_front: null, preview_owner_cnic_back: null, 
+            preview_owner_photo: null, preview_shop_exterior_photo: null
         };
+        await this.fetchDashboardData();
     }
 }
 
-TerritoryRoutes.template = "shahtaj_distributor.TerritoryRoutes"
+TerritoryRoutes.template = "shahtaj_distributor.TerritoryRoutes";

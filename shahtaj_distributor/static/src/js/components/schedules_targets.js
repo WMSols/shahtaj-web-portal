@@ -1,51 +1,174 @@
 /** @odoo-module **/
 
-import { Component, useState, xml } from "@odoo/owl";
+import { Component, useState, onWillStart } from "@odoo/owl";
+import { useService } from "@web/core/utils/hooks";
 
 export class SchedulesTargets extends Component {
     setup() {
+        this.orm = useService("orm");
         this.state = useState({
-            activeMainTab: 'schedules', // 'schedules' or 'targets'
-            viewMode: 'list', // 'list' or 'detail'
+            activeMainTab: 'schedules',
+            viewMode: 'list',
             selectedBooker: null,
             showForm: false,
             errorMessage: '',
+            isLoading: false,
 
             // Form Data
-            scheduleForm: { day: '', route: '', zone: '', is_active: true },
-            targetForm: { startDate: '', endDate: '', is_active: true, type: '', amount: '', currency: 'PKR', product: '' },
+            scheduleForm: { day: '', route_id: null, zone_name: '', is_active: true },
+            targetForm: {
+                startDate: '', endDate: '', is_active: true,
+                type: '', target_value: '', product_id: null, currency_id: null
+            },
 
-            // Mock Data
-            bookers: [
-                { id: "OB-01", name: "Ali Khan", zone: "North Zone", route: "Commercial Market Main" },
-                { id: "OB-02", name: "Usman Tariq", zone: "North Zone", route: "Phase 1 Residential" },
-                { id: "OB-03", name: "Zain Ahmed", zone: "South Zone", route: "Factory Area Link" }
-            ],
-            
-            // Shared Data Arrays
+            // Real data
+            bookers: [],
             schedules: [],
             targets: [],
-            
-            // Dropdown Options
-            zones: ["North Zone - City Center", "South Zone - Industrial", "East Zone - Suburbs"],
-            routes: ["Commercial Market Main", "Phase 1 Residential", "Factory Area Link"]
+
+            // Dropdown options loaded from DB
+            routes: [],       
+            products: [],     
+            currencies: [],   
+        });
+
+        onWillStart(async () => {
+            await this._loadDropdownOptions();
+            await this._loadBookers();
         });
     }
 
-    // --- Navigation Controllers ---
+    // ─── Loaders ────────────────────────────────────────────────────────────────
+
+    async _loadBookers() {
+        const users = await this.orm.searchRead(
+            'res.users',
+            [['shahtaj_is_order_booker', '=', true]],
+            ['id', 'name', 'shahtaj_employee_code', 'zone_id', 'route_id']
+        );
+        this.state.bookers = users.map(u => ({
+            id: u.id,
+            name: u.name,
+            employee_code: u.shahtaj_employee_code || '',
+            zone: u.zone_id ? u.zone_id[1] : 'Unassigned',
+            route: u.route_id ? u.route_id[1] : 'Unassigned',
+        }));
+    }
+
+    async _loadDropdownOptions() {
+        const [routes, products, currencies] = await Promise.all([
+            this.orm.searchRead(
+                'shahtaj.route',
+                [['active', '=', true]],
+                ['id', 'name', 'zone_id']
+            ),
+            this.orm.searchRead(
+                'product.product',
+                [],
+                ['id', 'name']
+            ),
+            this.orm.searchRead(
+                'res.currency',
+                [['active', '=', true]],
+                ['id', 'name']
+            ),
+        ]);
+
+        this.state.routes = routes.map(r => ({
+            id: r.id,
+            name: r.name,
+            zone_name: r.zone_id ? r.zone_id[1] : '',
+        }));
+        this.state.products = products.map(p => ({ id: p.id, name: p.name }));
+        this.state.currencies = currencies.map(c => ({ id: c.id, name: c.name }));
+    }
+
+    async _loadBookerSchedules(bookerId) {
+        const records = await this.orm.searchRead(
+            'shahtaj.weekly.schedule',
+            [['order_booker_id', '=', bookerId]],
+            [
+                'id', 'name', 'day_of_week', 'route_id', 'zone_id',
+                'active', 'shop_count', 'is_day_locked',
+                'week_tasks_planned', 'week_tasks_completed', 'week_tasks_progress',
+                'week_occurrence_date'
+            ]
+        );
+        
+        const dayMap = {
+            '0': 'Monday', '1': 'Tuesday', '2': 'Wednesday', '3': 'Thursday',
+            '4': 'Friday', '5': 'Saturday', '6': 'Sunday'
+        };
+
+        this.state.schedules = records.map(r => ({
+            id: r.id,
+            bookerId: bookerId,
+            name: r.name,
+            day: dayMap[r.day_of_week] || r.day_of_week,
+            route_id: r.route_id ? r.route_id[0] : null,
+            route: r.route_id ? r.route_id[1] : '', // Fixed mapping for XML
+            zone: r.zone_id ? r.zone_id[1] : '',    // Fixed mapping for XML
+            status: r.active ? 'Active' : 'Inactive',
+            shops: r.shop_count,
+            isLocked: r.is_day_locked,
+            planned: r.week_tasks_planned,
+            done: r.week_tasks_completed,
+            progress: r.week_tasks_progress ? `${r.week_tasks_progress.toFixed(0)}%` : '0%',
+            occurrenceDate: r.week_occurrence_date || '',
+        }));
+    }
+
+    async _loadBookerTargets(bookerId) {
+        const records = await this.orm.searchRead(
+            'shahtaj.visit.target',
+            [['order_booker_id', '=', bookerId]],
+            [
+                'id', 'name', 'date_start', 'date_end', 'target_type',
+                'target_value', 'achieved_value', 'progress_percent',
+                'product_id', 'currency_id', 'active'
+            ]
+        );
+        this.state.targets = records.map(r => ({
+            id: r.id,
+            bookerId: bookerId,
+            name: r.name,
+            startDate: r.date_start,
+            endDate: r.date_end,
+            type: r.target_type,
+            amount: r.target_value,                  // Fixed mapping for XML
+            achievedAmount: r.achieved_value,        // Fixed mapping for XML
+            progressPercentage: r.progress_percent ? `${r.progress_percent.toFixed(1)}%` : '0%', // Fixed mapping for XML
+            product: r.product_id ? r.product_id[1] : null,
+            currency: r.currency_id ? r.currency_id[1] : null,
+            status: r.active ? 'Active' : 'Inactive',
+        }));
+    }
+
+    // ─── Navigation ─────────────────────────────────────────────────────────────
+
     switchMainTab(tab) {
         this.state.activeMainTab = tab;
         this.state.viewMode = 'list';
         this.state.selectedBooker = null;
         this.state.showForm = false;
         this.state.errorMessage = '';
+        this.state.schedules = [];
+        this.state.targets = [];
     }
 
-    openBookerDetails(booker) {
+    async openBookerDetails(booker) {
         this.state.selectedBooker = booker;
         this.state.viewMode = 'detail';
         this.state.showForm = false;
         this.state.errorMessage = '';
+        this.state.isLoading = true;
+
+        await Promise.all([
+            this._loadBookerSchedules(booker.id),
+            this._loadBookerTargets(booker.id),
+        ]);
+
+        this.state.isLoading = false;
     }
 
     goBackToList() {
@@ -53,17 +176,22 @@ export class SchedulesTargets extends Component {
         this.state.selectedBooker = null;
         this.state.showForm = false;
         this.state.errorMessage = '';
+        this.state.schedules = [];
+        this.state.targets = [];
     }
 
     openForm() {
         this.state.showForm = true;
         this.state.errorMessage = '';
-        // Reset forms
-        this.state.scheduleForm = { day: '', route: '', zone: '', is_active: true };
-        this.state.targetForm = { startDate: '', endDate: '', is_active: true, type: '', amount: '', currency: 'PKR', product: '' };
+        this.state.scheduleForm = { day: '', route_id: null, zone_name: '', is_active: true };
+        this.state.targetForm = {
+            startDate: '', endDate: '', is_active: true,
+            type: '', target_value: '', product_id: null, currency_id: null,
+        };
     }
 
-    // --- Data Getters ---
+    // ─── Getters ─────────────────────────────────────────────────────────────────
+
     get currentBookerSchedules() {
         return this.state.schedules.filter(s => s.bookerId === this.state.selectedBooker?.id);
     }
@@ -71,69 +199,131 @@ export class SchedulesTargets extends Component {
     get currentBookerTargets() {
         return this.state.targets.filter(t => t.bookerId === this.state.selectedBooker?.id);
     }
-
-    // --- Save Handlers ---
-    saveSchedule() {
-        // Validation: Check if day is already scheduled for this booker
-        const dayExists = this.currentBookerSchedules.some(s => s.day === this.state.scheduleForm.day);
-        
-        if (dayExists) {
-            this.state.errorMessage = `A schedule for ${this.state.scheduleForm.day} already exists for this Order Booker.`;
-            return;
-        }
-
-        if (!this.state.scheduleForm.day || !this.state.scheduleForm.route) {
-            this.state.errorMessage = "Day and Route are required.";
-            return;
-        }
-
-        this.state.schedules.push({
-            id: `SCH-${Date.now()}`,
-            bookerId: this.state.selectedBooker.id,
-            day: this.state.scheduleForm.day,
-            route: this.state.scheduleForm.route,
-            zone: this.state.scheduleForm.zone,
-            status: this.state.scheduleForm.is_active ? "Active" : "Inactive",
-            progress: "0%",
-            done: 0,
-            planned: 0,
-            shops: 0 // Will be calculated by backend
-        });
-
-        this.state.showForm = false;
-        this.state.errorMessage = '';
+    
+    get uniqueZones() {
+        const seen = new Set();
+        return this.state.routes
+            .map(r => r.zone_name)
+            .filter(z => z && !seen.has(z) && seen.add(z));
     }
 
-    saveTarget() {
-        if (!this.state.targetForm.startDate || !this.state.targetForm.endDate || !this.state.targetForm.type) {
-            this.state.errorMessage = "Start Date, End Date, and Target Type are required.";
-            return;
-        }
-        const start = new Date(this.state.targetForm.startDate);
-        const end = new Date(this.state.targetForm.endDate);
-        
-        if (end < start) {
-            this.state.errorMessage = "The End Date cannot be earlier than the Start Date.";
+    get filteredRoutes() {
+        const zone = this.state.scheduleForm.zone_name;
+        if (!zone) return this.state.routes;
+        return this.state.routes.filter(r => r.zone_name === zone);
+    }
+
+    // ─── Save: Schedule ──────────────────────────────────────────────────────────
+
+    async saveSchedule() {
+        const form = this.state.scheduleForm;
+
+        if (!form.day || !form.route_id) {
+            this.state.errorMessage = 'Day and Route are required.';
             return;
         }
 
-        this.state.targets.push({
-            id: `TGT-${Date.now()}`,
-            bookerId: this.state.selectedBooker.id,
-            startDate: this.state.targetForm.startDate,
-            endDate: this.state.targetForm.endDate,
-            type: this.state.targetForm.type,
-            amount: this.state.targetForm.amount,
-            currency: this.state.targetForm.type === 'sales_amount' ? this.state.targetForm.currency : null,
-            product: this.state.targetForm.type === 'product_quantity' ? this.state.targetForm.product : null,
-            status: this.state.targetForm.is_active ? "Active" : "Inactive",
-            progressPercentage: "0%",
-            achievedAmount: 0
-        });
+        const dayExists = this.currentBookerSchedules.some(s => s.day === form.day);
+        if (dayExists) {
+            this.state.errorMessage = `A schedule for this day already exists for this Order Booker.`;
+            return;
+        }
 
-        this.state.showForm = false;
+        this.state.isLoading = true;
         this.state.errorMessage = '';
+
+        try {
+            await this.orm.create('shahtaj.weekly.schedule', [{
+                order_booker_id: this.state.selectedBooker.id,
+                day_of_week: form.day,
+                route_id: form.route_id,
+                active: form.is_active,
+            }]);
+
+            this.state.showForm = false;
+            await this._loadBookerSchedules(this.state.selectedBooker.id);
+        } catch (error) {
+            this.state.errorMessage = error.data?.message || error.message || 'Failed to save schedule.';
+        } finally {
+            this.state.isLoading = false;
+        }
+    }
+
+    // ─── Save: Target ────────────────────────────────────────────────────────────
+
+    async saveTarget() {
+        const form = this.state.targetForm;
+
+        if (!form.startDate || !form.endDate || !form.type || !form.target_value) {
+            this.state.errorMessage = 'Start Date, End Date, Target Type, and Target Value are required.';
+            return;
+        }
+
+        if (new Date(form.endDate) < new Date(form.startDate)) {
+            this.state.errorMessage = 'End Date cannot be earlier than Start Date.';
+            return;
+        }
+
+        if (form.type === 'product_qty' && !form.product_id) {
+            this.state.errorMessage = 'A product is required for Product Quantity targets.';
+            return;
+        }
+
+        this.state.isLoading = true;
+        this.state.errorMessage = '';
+
+        try {
+            const payload = {
+                order_booker_id: this.state.selectedBooker.id,
+                date_start: form.startDate,
+                date_end: form.endDate,
+                target_type: form.type,
+                target_value: parseFloat(form.target_value),
+                active: form.is_active,
+            };
+
+            if (form.type === 'product_qty' && form.product_id) {
+                payload.product_id = form.product_id;
+            }
+            if (form.type === 'sales_amount' && form.currency_id) {
+                payload.currency_id = form.currency_id;
+            }
+
+            await this.orm.create('shahtaj.visit.target', [payload]);
+
+            this.state.showForm = false;
+            await this._loadBookerTargets(this.state.selectedBooker.id);
+        } catch (error) {
+            this.state.errorMessage = error.data?.message || error.message || 'Failed to save target.';
+        } finally {
+            this.state.isLoading = false;
+        }
+    }
+
+    // ─── Delete ──────────────────────────────────────────────────────────────────
+
+    async deleteSchedule(scheduleId) {
+        const schedule = this.state.schedules.find(s => s.id === scheduleId);
+        if (schedule?.isLocked) {
+            this.state.errorMessage = "Cannot delete today's schedule — visits are already in progress.";
+            return;
+        }
+        try {
+            await this.orm.unlink('shahtaj.weekly.schedule', [scheduleId]);
+            await this._loadBookerSchedules(this.state.selectedBooker.id);
+        } catch (error) {
+            this.state.errorMessage = error.data?.message || error.message;
+        }
+    }
+
+    async deleteTarget(targetId) {
+        try {
+            await this.orm.unlink('shahtaj.visit.target', [targetId]);
+            await this._loadBookerTargets(this.state.selectedBooker.id);
+        } catch (error) {
+            this.state.errorMessage = error.data?.message || error.message;
+        }
     }
 }
 
-SchedulesTargets.template = "shahtaj_distributor.SchedulesTargets"
+SchedulesTargets.template = "shahtaj_distributor.SchedulesTargets";

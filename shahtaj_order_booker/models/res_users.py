@@ -290,3 +290,4 @@ class ResUsers(models.Model):
             ],
             'target': 'current',
         }
+    
