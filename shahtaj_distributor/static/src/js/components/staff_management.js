@@ -109,7 +109,7 @@ export class StaffManagement extends Component {
         this.state.showForm = true;
     }
 
-    // --- UPDATED CREATION LOGIC ---
+   // --- UPDATED CREATION LOGIC USING WIZARD ---
     async saveStaff() {
         if (!this.state.formData.name || !this.state.formData.email || !this.state.formData.password) {
             alert("Name, Email, and Password are required.");
@@ -117,20 +117,28 @@ export class StaffManagement extends Component {
         }
 
         try {
-            // Call the custom sudo-enabled Python endpoint instead of standard orm.create
-            await this.orm.call("res.users", "action_create_order_booker_spa", [{
+            // 1. Create a record in the existing wizard model
+            const wizardIds = await this.orm.create("shahtaj.create.order.booker.wizard", [{
                 name: this.state.formData.name,
                 login: this.state.formData.email,
                 password: this.state.formData.password,
-                employee_code: this.state.formData.employee_code,
+                shahtaj_employee_code: this.state.formData.employee_code,
             }]);
 
+            // 2. Execute the wizard's creation action using the generated record ID
+            await this.orm.call("shahtaj.create.order.booker.wizard", "action_create_booker", [wizardIds]);
+
+            // 3. Reset form and UI state on success
             this.state.showForm = false;
+            this.state.formData = { name: '', employee_code: '', email: '', password: '', role: 'order_booker' };
+            
+            // 4. Refresh the list to show the new booker
             await this.fetchStaffData();
 
         } catch (error) {
             console.error("Creation failed:", error);
-            alert(`Failed to create order booker:\n\n${error.data?.message || error.message}`);
+            const errorMessage = error.data?.message || error.message || "Unknown error occurred";
+            alert(`Failed to create order booker:\n\n${errorMessage}`);
         }
     }
 }

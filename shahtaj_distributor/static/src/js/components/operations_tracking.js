@@ -6,13 +6,12 @@ import { useService } from "@web/core/utils/hooks";
 export class OperationsTracking extends Component {
     setup() {
         this.orm = useService("orm");
-
+        this.notification = useService("notification");
         this.state = useState({
-            activeSubTab: 'orders', // Defaulted to orders
-            selectedOrder: null,    // Tracks which order is currently open
-            selectedCheckin: null,  // Tracks which check-in is currently open
+            activeSubTab: 'orders',
+            selectedOrder: null,    
+            selectedCheckin: null,  
             
-            // --- FILTER & PAGINATION STATE ---
             itemsPerPage: 5,
             
             deliveryFilters: { search: '', status: '' },
@@ -24,7 +23,6 @@ export class OperationsTracking extends Component {
             orderFilters: { search: '', status: '' },
             orderPage: 1,
 
-            // Mock Data: Active Delivery Fleet (Expanded)
             deliveries: [
                 { id: "DLV-0091", driver: "Zain Ahmed", route: "Route A - Central", status: "In-Transit", progress: "65%", last_update: "10 mins ago" },
                 { id: "DLV-0092", driver: "Fahad Mustafa", route: "Route C - Industrial", status: "Pending", progress: "0%", last_update: "Loading at Hub" },
@@ -36,39 +34,45 @@ export class OperationsTracking extends Component {
                 { id: "DLV-0098", driver: "Hamza Farooq", route: "Route B - North", status: "In-Transit", progress: "85%", last_update: "5 mins ago" }
             ],
 
-            // REAL DATA: Geo-tagged Check-ins
             checkins: [],
-
-            // Mock Data: Expanded Live Field Orders
-            orders: [
-                { id: "SO-1042", shop: "Bismillah General Store", booker: "Ali Khan", address: "Main Market, Block 4, Mianwali", phone: "0300-1234567", date: "22-Jun-2026 09:15 AM", items: 34, total: "Rs. 45,000", status: "Draft", lines: [{ product: "Shahtaj Premium Cooking Oil 5L", qty: 4, unit: "Carton", price: "4,500", subtotal: "18,000" }, { product: "Shahtaj Banaspati 1kg Pouch", qty: 30, unit: "Pieces", price: "900", subtotal: "27,000" }] },
-                { id: "SO-1041", shop: "Al-Hafeez Supermart", booker: "Ali Khan", address: "Commercial Zone, Phase 1", phone: "0333-9876543", date: "22-Jun-2026 08:30 AM", items: 120, total: "Rs. 120,500", status: "Confirmed", lines: [{ product: "Shahtaj Cooking Oil 1L Pouch", qty: 100, unit: "Pieces", price: "950", subtotal: "95,000" }, { product: "Shahtaj Banaspati 5kg Tin", qty: 20, unit: "Tin", price: "1,275", subtotal: "25,500" }] },
-                { id: "SO-1040", shop: "Madina Traders", booker: "Usman Tariq", address: "G.T. Road Link", phone: "0321-5558888", date: "21-Jun-2026 04:45 PM", items: 15, total: "Rs. 67,500", status: "Delivered", lines: [{ product: "Shahtaj Premium Cooking Oil 5L", qty: 15, unit: "Carton", price: "4,500", subtotal: "67,500" }] },
-                { id: "SO-1043", shop: "Kashmir Mart", booker: "Ali Khan", address: "PAF Road", phone: "0345-1112222", date: "22-Jun-2026 10:00 AM", items: 50, total: "Rs. 47,500", status: "Confirmed", lines: [{ product: "Shahtaj Cooking Oil 1L Pouch", qty: 50, unit: "Pieces", price: "950", subtotal: "47,500" }] },
-                { id: "SO-1044", shop: "Awais Kiryana", booker: "Usman Tariq", address: "Ballo Khel Road", phone: "0301-9998888", date: "22-Jun-2026 10:30 AM", items: 10, total: "Rs. 12,750", status: "Draft", lines: [{ product: "Shahtaj Banaspati 5kg Tin", qty: 10, unit: "Tin", price: "1,275", subtotal: "12,750" }] },
-                { id: "SO-1045", shop: "City Center Mart", booker: "Zahid Qureshi", address: "City Center", phone: "0333-4445555", date: "22-Jun-2026 11:15 AM", items: 200, total: "Rs. 190,000", status: "Confirmed", lines: [{ product: "Shahtaj Cooking Oil 1L Pouch", qty: 200, unit: "Pieces", price: "950", subtotal: "190,000" }] },
-                { id: "SO-1046", shop: "Metro Cash & Carry", booker: "Usman Tariq", address: "Main Highway", phone: "0300-7776666", date: "21-Jun-2026 05:30 PM", items: 5, total: "Rs. 22,500", status: "Delivered", lines: [{ product: "Shahtaj Premium Cooking Oil 5L", qty: 5, unit: "Carton", price: "4,500", subtotal: "22,500" }] }
-            ]
+            orders: [],
+            activeSubTab: 'orders',
+            selectedOrder: null,    
+            selectedCheckin: null,  
+            
+            itemsPerPage: 5,
+            
+            deliveryFilters: { search: '', status: '' },
+            deliveryPage: 1,
+            
+            checkinFilters: { search: '', status: '' },
+            checkinPage: 1,
+            
+            orderFilters: { search: '', status: '' },
+            orderPage: 1,
+            
+            isCreatingInvoice: false,
         });
+        
 
         onWillStart(async () => {
-            await this.fetchLiveVisits();
+            await Promise.all([
+                this.fetchLiveVisits(),
+                this.fetchLiveOrders()
+            ]);
         });
     }
 
-    // --- FETCH LIVE VISITS FROM BACKEND ---
     async fetchLiveVisits() {
         const visits = await this.orm.searchRead(
             "shahtaj.visit",
             [],
-            ["id", "shop_id", "order_booker_id", "started_at", "ended_at", "state", "outcome", "visit_task_id"]
+            ["id", "shop_id", "order_booker_id", "started_at", "ended_at", "state", "outcome", "visit_task_id", "sale_order_id"]
         );
 
         this.state.checkins = visits.map(v => {
             let durationStr = "Active Now";
             if (v.started_at && v.ended_at) {
-                // Odoo returns dates as UTC strings like "2026-06-24 10:00:00"
-                // Replacing space with T makes it parseable across browsers
                 const start = new Date(v.started_at.replace(' ', 'T') + "Z");
                 const end = new Date(v.ended_at.replace(' ', 'T') + "Z");
                 const diffMs = end - start;
@@ -76,13 +80,11 @@ export class OperationsTracking extends Component {
                 durationStr = `${diffMins} mins`;
             }
 
-            // Map Odoo technical states to friendly UI states
             let displayStatus = 'Unknown';
             if (v.state === 'in_progress') displayStatus = 'Checked In';
             else if (v.state === 'completed') displayStatus = 'Checked Out';
             else if (v.state === 'cancelled') displayStatus = 'Cancelled';
 
-            // Format outcome
             let displayOutcome = v.outcome;
             if (v.outcome === 'none') displayOutcome = 'In Progress';
             else if (v.outcome === 'order') displayOutcome = 'Order Placed';
@@ -97,7 +99,40 @@ export class OperationsTracking extends Component {
                 status: displayStatus,
                 duration: durationStr,
                 outcome: displayOutcome,
-                taskRef: v.visit_task_id ? v.visit_task_id[1] : 'Direct Visit'
+                taskRef: v.visit_task_id ? v.visit_task_id[1] : 'Direct Visit',
+                sale_order_id: v.sale_order_id 
+            };
+        });
+    }
+
+    async fetchLiveOrders() {
+        const orders = await this.orm.searchRead(
+            "sale.order",
+            [["shahtaj_visit_id", "!=", false]], 
+            ["name", "partner_id", "user_id", "date_order", "amount_total", "state", "order_line"]
+        );
+
+        this.state.orders = orders.map(o => {
+            let status = o.state;
+            if (status === 'draft') status = 'Draft';
+            if (status === 'sale') status = 'Confirmed';
+            if (status === 'done') status = 'Delivered'; 
+
+            return {
+                odoo_id: o.id,
+                id: o.name,
+                shop: o.partner_id ? o.partner_id[1] : 'Unknown Shop',
+                partner_id: o.partner_id, // Store tuple to fetch partner info later
+                booker: o.user_id ? o.user_id[1] : 'Unknown Booker',
+                address: "Loading...", 
+                phone: "Loading...",
+                email: "Loading...",
+                date: o.date_order || 'Unknown',
+                items: o.order_line.length,
+                total: `Rs. ${o.amount_total.toLocaleString(undefined, {minimumFractionDigits: 2})}`,
+                status: status,
+                line_ids: o.order_line,
+                lines: [] 
             };
         });
     }
@@ -108,7 +143,6 @@ export class OperationsTracking extends Component {
         this.state.selectedCheckin = null;
     }
 
-    // --- DELIVERY GETTERS ---
     get filteredDeliveries() {
         return this.state.deliveries.filter(d => {
             const matchSearch = d.driver.toLowerCase().includes(this.state.deliveryFilters.search.toLowerCase()) || 
@@ -124,7 +158,6 @@ export class OperationsTracking extends Component {
     }
     get deliveryTotalPages() { return Math.max(1, Math.ceil(this.filteredDeliveries.length / this.state.itemsPerPage)); }
 
-    // --- CHECKIN GETTERS ---
     get filteredCheckins() {
         return this.state.checkins.filter(c => {
             const matchSearch = c.shop.toLowerCase().includes(this.state.checkinFilters.search.toLowerCase()) || 
@@ -139,7 +172,6 @@ export class OperationsTracking extends Component {
     }
     get checkinTotalPages() { return Math.max(1, Math.ceil(this.filteredCheckins.length / this.state.itemsPerPage)); }
 
-    // --- ORDER GETTERS ---
     get filteredOrders() {
         return this.state.orders.filter(o => {
             const matchSearch = o.shop.toLowerCase().includes(this.state.orderFilters.search.toLowerCase()) || 
@@ -155,7 +187,6 @@ export class OperationsTracking extends Component {
     }
     get orderTotalPages() { return Math.max(1, Math.ceil(this.filteredOrders.length / this.state.itemsPerPage)); }
 
-    // --- PAGINATION ACTION ---
     changePage(type, direction) {
         if (type === 'delivery') {
             const newPage = this.state.deliveryPage + direction;
@@ -169,11 +200,132 @@ export class OperationsTracking extends Component {
         }
     }
 
-    viewOrder(order) { this.state.selectedOrder = order; }
+    async viewOrder(order) { 
+        this.state.selectedOrder = order; 
+        
+        // Lazy-load order lines if they haven't been fetched yet
+        if (order.line_ids && order.line_ids.length > 0 && order.lines.length === 0) {
+            const lines = await this.orm.searchRead(
+                "sale.order.line",
+                [["id", "in", order.line_ids]],
+                ["name", "product_uom_qty", "product_uom_id", "price_unit", "price_subtotal"] // Fixed product_uom_id
+            );
+            
+            order.lines = lines.map(l => ({
+                product: l.name,
+                qty: l.product_uom_qty,
+                unit: l.product_uom_id ? l.product_uom_id[1] : 'Units',
+                price: l.price_unit.toLocaleString(undefined, {minimumFractionDigits: 2}),
+                subtotal: l.price_subtotal.toLocaleString(undefined, {minimumFractionDigits: 2})
+            }));
+        }
+
+        // Lazy-load shop (partner) details if not fetched yet
+        if (order.partner_id && order.phone === "Loading...") {
+            const partners = await this.orm.searchRead(
+                "res.partner",
+                [["id", "=", order.partner_id[0]]],
+                ["phone", "email", "street", "city"]
+            );
+            if (partners.length > 0) {
+                const p = partners[0];
+                order.phone = p.phone || 'N/A';
+                order.email = p.email || 'N/A';
+                order.address = [p.street, p.city].filter(Boolean).join(', ') || 'No address provided';
+            }
+        }
+    }
+    
     closeOrder() { this.state.selectedOrder = null; }
 
     viewCheckin(log) { this.state.selectedCheckin = log; }
     closeCheckin() { this.state.selectedCheckin = null; }
+
+    async viewOrderFromCheckin(log) {
+        if (log.sale_order_id) {
+            let targetOrder = this.state.orders.find(o => o.odoo_id === log.sale_order_id[0]);
+            
+            if (!targetOrder) {
+                await this.fetchLiveOrders();
+                targetOrder = this.state.orders.find(o => o.odoo_id === log.sale_order_id[0]);
+            }
+            
+            if (targetOrder) {
+                this.setSubTab('orders');
+                await this.viewOrder(targetOrder);
+            }
+        }
+    }
+    async fetchLiveOrders() {
+        const orders = await this.orm.searchRead(
+            "sale.order",
+            [["shahtaj_visit_id", "!=", false]], 
+            ["name", "partner_id", "user_id", "date_order", "amount_total", "state", "order_line", "invoice_status"] 
+        );
+
+        this.state.orders = orders.map(o => {
+            let status = 'Unknown';
+            
+            // Merge Odoo's 'state' and 'invoice_status' into a single readable string
+            if (o.state === 'draft') {
+                status = 'Draft';
+            } else if (o.state === 'sale') {
+                if (o.invoice_status === 'to invoice') status = 'To Invoice';
+                else if (o.invoice_status === 'invoiced') status = 'Invoiced';
+                else status = 'Confirmed'; // Fallback if nothing to invoice
+            } else if (o.state === 'done') {
+                status = 'Delivered'; 
+            }
+
+            return {
+                odoo_id: o.id,
+                id: o.name,
+                shop: o.partner_id ? o.partner_id[1] : 'Unknown Shop',
+                partner_id: o.partner_id,
+                booker: o.user_id ? o.user_id[1] : 'Unknown Booker',
+                address: "Loading...", 
+                phone: "Loading...",
+                email: "Loading...",
+                date: o.date_order || 'Unknown',
+                items: o.order_line.length,
+                total: `Rs. ${o.amount_total.toLocaleString(undefined, {minimumFractionDigits: 2})}`,
+                status: status, // Now reflects "To Invoice" or "Invoiced"
+                invoice_status: o.invoice_status, 
+                line_ids: o.order_line,
+                lines: [] 
+            };
+        });
+    }
+
+    async createInvoice() {
+        if (!this.state.selectedOrder || this.state.isCreatingInvoice) return;
+
+        this.state.isCreatingInvoice = true;
+        
+        try {
+            // Point to the new PUBLIC wrapper method instead of the private _create_invoices
+            await this.orm.call("sale.order", "action_create_invoice_portal", [[this.state.selectedOrder.odoo_id]]);
+            
+            this.notification.add(`Draft invoice generated for ${this.state.selectedOrder.id}.`, {
+                title: "Success",
+                type: "success",
+            });
+
+            // Optimistically update BOTH tracking variables
+            this.state.selectedOrder.invoice_status = 'invoiced';
+            this.state.selectedOrder.status = 'Invoiced'; 
+            
+            this.fetchLiveOrders();
+
+        } catch (error) {
+            this.notification.add(error.data?.message || "Failed to create invoice.", {
+                title: "Action Failed",
+                type: "danger",
+            });
+        } finally {
+            this.state.isCreatingInvoice = false;
+        }
+    }
 }
 
-OperationsTracking.template = "shahtaj_distributor.OperationsTracking"
+OperationsTracking.template = "shahtaj_distributor.OperationsTracking";

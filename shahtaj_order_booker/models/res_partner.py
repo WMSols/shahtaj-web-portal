@@ -200,6 +200,29 @@ class ResPartner(models.Model):
                 vals['use_partner_credit_limit'] = True
         return vals
 
+    def _get_shop_receivable_account(self, company):
+        """Resolve receivable for a shop: partner property, then company defaults / CoA."""
+        self.ensure_one()
+        partner = self.with_company(company)
+        receivable = partner.sudo().property_account_receivable_id
+        if not receivable:
+            receivable = self.env['res.partner']._fields[
+                'property_account_receivable_id'
+            ].get_company_dependent_fallback(partner.sudo())
+        if not receivable:
+            receivable = company.sudo().partner_id.with_company(
+                company
+            ).property_account_receivable_id
+        if not receivable:
+            receivable = self.env['account.account'].sudo().search([
+                ('company_ids', 'in', company.id),
+                ('account_type', '=', 'asset_receivable'),
+                ('active', '=', True),
+            ], limit=1)
+        if receivable and not partner.property_account_receivable_id:
+            partner.sudo().property_account_receivable_id = receivable
+        return receivable
+
     def _post_legacy_balance_entry(self):
         """Post one journal entry: debit shop receivable, credit opening balance."""
         AccountMove = self.env['account.move'].sudo()
@@ -217,12 +240,13 @@ class ResPartner(models.Model):
                 precision_rounding=(partner.currency_id or company.currency_id).rounding,
             ):
                 continue
-            receivable = partner.sudo().property_account_receivable_id
+            receivable = partner._get_shop_receivable_account(company)
             if not receivable:
                 raise UserError(_(
-                    'No receivable account configured for shop "%(shop)s". '
-                    'Install accounting chart or set a receivable account on the contact.',
+                    'No receivable account found for shop "%(shop)s". '
+                    'Install a chart of accounts for company "%(company)s" first.',
                     shop=partner.name,
+                    company=company.display_name,
                 ))
             journal = AccountJournal.search([
                 ('type', '=', 'general'),
@@ -288,11 +312,34 @@ class ResPartner(models.Model):
             self.filtered(
                 lambda p: p.shop_approval_state == 'approved' and not p.legacy_balance_move_id
             )._post_legacy_balance_entry()
+        if 'shop_approval_state' in vals:
+            self.filtered('is_shahtaj_shop')._sync_visit_tasks_after_approval_change()
         return res
+
+    def _sync_visit_tasks_after_approval_change(self):
+        """Cancel tasks for unapproved shops; generate tasks when a shop is approved."""
+        Task = self.env['shahtaj.visit.task']
+        for partner in self:
+            if partner.shop_approval_state != 'approved':
+                Task._cancel_pending_tasks_for_unapproved_shops()
+                continue
+            bookers = partner.route_id.mapped('weekly_schedule_ids.order_booker_id')
+            if bookers:
+                for booker in bookers:
+                    Task._auto_generate_window(order_booker=booker)
+            else:
+                Task._auto_generate_window()
 
     def action_approve_shop(self):
         """Distributor approves a pending shop; posts legacy balance if set."""
         pending = self.filtered(lambda p: p.shop_approval_state != 'approved')
+        for partner in pending:
+            company = partner.company_id or self.env.company
+            if partner.legacy_balance and not float_is_zero(
+                partner.legacy_balance,
+                precision_rounding=(partner.currency_id or company.currency_id).rounding,
+            ):
+                partner._get_shop_receivable_account(company)
         pending.write({'shop_approval_state': 'approved', 'is_shahtaj_shop': True})
         pending._post_legacy_balance_entry()
 
@@ -311,3 +358,56 @@ class ResPartner(models.Model):
             'view_mode': 'form',
             'target': 'current',
         }
+
+    def action_shahtaj_view_sale_orders(self):
+        """Open sales orders for this shop."""
+        self.ensure_one()
+        action = self.env['ir.actions.actions']._for_xml_id('sale.action_orders')
+        action['domain'] = [('partner_id', 'child_of', self.ids)]
+        action['context'] = {
+            **self.env.context,
+            'default_partner_id': self.id,
+            'search_default_partner_id': self.id,
+        }
+        return action
+
+    def action_shahtaj_view_customer_payments(self):
+        """Open customer payments recorded for this shop."""
+        self.ensure_one()
+        action = self.env['ir.actions.actions']._for_xml_id(
+            'account.action_account_payments'
+        )
+        children = self.with_context(active_test=False).search([
+            ('id', 'child_of', self.ids),
+        ])
+        action['domain'] = [
+            ('partner_id', 'in', children.ids),
+            ('partner_type', '=', 'customer'),
+        ]
+        action['context'] = {
+            **self.env.context,
+            'default_partner_id': self.id,
+            'default_partner_type': 'customer',
+            'search_default_partner_id': self.id,
+        }
+        return action
+
+    def action_shahtaj_view_receivable_entries(self):
+        """Open posted receivable journal items for this shop."""
+        self.ensure_one()
+        action = self.env['ir.actions.actions']._for_xml_id(
+            'account.action_account_moves_all_a'
+        )
+        children = self.with_context(active_test=False).search([
+            ('id', 'child_of', self.ids),
+        ])
+        action['domain'] = [
+            ('partner_id', 'in', children.ids),
+            ('account_id.account_type', '=', 'asset_receivable'),
+            ('parent_state', '=', 'posted'),
+        ]
+        action['context'] = {
+            **self.env.context,
+            'search_default_partner_id': self.id,
+        }
+        return action

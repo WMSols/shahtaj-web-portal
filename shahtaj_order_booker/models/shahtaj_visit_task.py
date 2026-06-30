@@ -7,7 +7,7 @@ Bookers check in via GPS; distributors can skip or cancel tasks.
 from datetime import timedelta
 
 from odoo import _, api, fields, models
-from odoo.exceptions import ValidationError
+from odoo.exceptions import UserError, ValidationError
 
 # How many days ahead to auto-create tasks (today + this many days).
 AUTO_GENERATE_DAYS_AHEAD = 13
@@ -59,7 +59,10 @@ class ShahtajVisitTask(models.Model):
         'res.partner',
         string='Shop',
         required=True,
-        domain=[('is_shahtaj_shop', '=', True)],
+        domain=[
+            ('is_shahtaj_shop', '=', True),
+            ('shop_approval_state', '=', 'approved'),
+        ],
         ondelete='restrict',
     )
     scheduled_date = fields.Date(
@@ -106,6 +109,12 @@ class ShahtajVisitTask(models.Model):
     @api.constrains('shop_id', 'route_id')
     def _check_shop_on_route(self):
         for task in self:
+            if task.shop_id and task.shop_id.shop_approval_state != 'approved':
+                raise ValidationError(_(
+                    'Shop "%(shop)s" is not approved. '
+                    'Only approved shops can be scheduled or visited.',
+                    shop=task.shop_id.name,
+                ))
             if task.shop_id and task.route_id:
                 if task.shop_id.route_id != task.route_id:
                     raise ValidationError(_(
@@ -122,6 +131,12 @@ class ShahtajVisitTask(models.Model):
     def action_check_in_at_shop(self):
         """Open GPS wizard, or reopen visit if already checked in."""
         self.ensure_one()
+        if self.shop_id.shop_approval_state != 'approved':
+            raise UserError(_(
+                'Shop "%(shop)s" is not approved yet. '
+                'You cannot visit until the distributor approves it.',
+                shop=self.shop_id.name,
+            ))
         if self.visit_id and self.visit_id.state == 'in_progress':
             return self.action_open_visit()
         return {
@@ -187,8 +202,25 @@ class ShahtajVisitTask(models.Model):
         return super().write(vals)
 
     @api.model
+    def _cancel_pending_tasks_for_unapproved_shops(self, date_from=None, date_to=None):
+        """Remove pending visit tasks for shops that are not approved."""
+        domain = [
+            ('state', '=', 'pending'),
+            ('shop_id.shop_approval_state', '!=', 'approved'),
+        ]
+        if date_from:
+            domain.append(('scheduled_date', '>=', date_from))
+        if date_to:
+            domain.append(('scheduled_date', '<=', date_to))
+        pending = self.search(domain)
+        if pending:
+            pending.with_context(shahtaj_system_visit_write=True).write({'state': 'cancelled'})
+
+    @api.model
     def _generate_from_schedules(self, date_from, date_to, order_booker=None):
         """For each day in range: match weekday schedules → one task per shop on route."""
+        self._cancel_pending_tasks_for_unapproved_shops(date_from, date_to)
+
         Schedule = self.env['shahtaj.weekly.schedule']
         schedule_domain = [('active', '=', True)]
         if order_booker:
@@ -202,7 +234,10 @@ class ShahtajVisitTask(models.Model):
             weekday = str(day.weekday())
             day_schedules = schedules.filtered(lambda s: s.day_of_week == weekday)
             for schedule in day_schedules:
-                for shop in schedule.route_id.shop_ids:
+                approved_shops = schedule.route_id.shop_ids.filtered(
+                    lambda s: s.shop_approval_state == 'approved'
+                )
+                for shop in approved_shops:
                     existing = self.search([
                         ('shop_id', '=', shop.id),
                         ('scheduled_date', '=', day),

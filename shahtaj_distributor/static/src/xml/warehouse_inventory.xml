@@ -25,6 +25,13 @@
                         Stock Levels
                     </button>
                 </li>
+                <li class="nav-item me-2">
+                    <button t-on-click="() => this.setSubTab('management')" 
+                            t-attf-class="nav-link fw-bold rounded-pill border-0 px-4 py-2 w-100 transition-all d-flex justify-content-center align-items-center #{this.state.activeSubTab === 'management' ? 'active bg-dark text-white shadow-sm' : 'text-muted bg-white'}">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-clipboard-list me-2"><rect width="8" height="4" x="8" y="2" rx="1" ry="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><path d="M12 11h4"/><path d="M12 16h4"/><path d="M8 11h.01"/><path d="M8 16h.01"/></svg>
+                        Stock Management
+                    </button>
+                </li>
                 <li class="nav-item">
                     <button t-on-click="() => this.setSubTab('warehouses')" 
                             t-attf-class="nav-link fw-bold rounded-pill border-0 px-4 py-2 w-100 transition-all d-flex justify-content-center align-items-center #{this.state.activeSubTab === 'warehouses' ? 'active bg-dark text-white shadow-sm' : 'text-muted bg-white'}">
@@ -38,83 +45,282 @@
         <t t-if="this.state.activeSubTab === 'inventory'">
             <div class="p-4 bg-white border-bottom d-flex justify-content-between align-items-center">
                 <h6 class="fw-bold mb-0">Master Inventory Control</h6>
-                <button class="btn btn-sm btn-dark fw-bold d-flex align-items-center text-white" t-on-click="() => this.state.showAdjustmentForm = true">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-sliders-horizontal me-2"><line x1="21" x2="14" y1="4" y2="4"/><line x1="10" x2="3" y1="4" y2="4"/><line x1="21" x2="12" y1="12" y2="12"/><line x1="8" x2="3" y1="12" y2="12"/><line x1="21" x2="16" y1="20" y2="20"/><line x1="12" x2="3" y1="20" y2="20"/><line x1="14" x2="14" y1="2" y2="6"/><line x1="8" x2="8" y1="10" y2="14"/><line x1="16" x2="16" y1="18" y2="22"/></svg>
-                    Quick Adjustment
+                <div>
+                    <button class="btn btn-sm btn-dark fw-bold me-2" t-on-click="() => { this.resetForms(); this.state.showProductAddForm = true; }">
+                        + New Product
+                    </button>
+                </div>
+            </div>
+
+            <t t-if="this.state.showProductAddForm">
+                <div class="p-4 bg-light border-bottom rounded-3 m-3">
+                    <h6 class="fw-bold text-dark mb-4">Create New Product</h6>
+                    <div class="row g-3">
+                        <div class="col-md-4">
+                            <label class="small fw-bold">Product Name</label>
+                            <input type="text" class="form-control" t-model="this.state.productForm.name" placeholder="e.g. Cooking Oil 5L"/>
+                        </div>
+                        <div class="col-md-2">
+                            <label class="small fw-bold">Product Type</label>
+                            <select class="form-select" t-model="this.state.productForm.type">
+                                <option value="consu">Goods</option>
+                                <option value="service">Service</option>
+                                <option value="combo">Combo</option>
+                            </select>
+                        </div>
+                        <div class="col-md-2">
+                            <label class="small fw-bold">Invoicing Policy</label>
+                            <select class="form-select" t-model="this.state.productForm.invoice_policy">
+                                <option value="order">Ordered Qty</option>
+                                <option value="delivery">Delivered Qty</option>
+                            </select>
+                        </div>
+                        <div class="col-md-2 d-flex align-items-end pb-2">
+                            <div class="form-check form-switch">
+                                <input class="form-check-input" type="checkbox" id="trackInv" t-model="this.state.productForm.track_inventory"/>
+                                <label class="form-check-label small fw-bold" for="trackInv">Track Inventory</label>
+                            </div>
+                        </div>
+                        <div class="col-md-2">
+                            <label class="small fw-bold">Initial On-Hand Qty</label>
+                            <input type="number" class="form-control" t-model="this.state.productForm.on_hand" min="0" t-att-disabled="!this.state.productForm.track_inventory"/>
+                        </div>
+
+                        <div class="col-md-3">
+                            <label class="small fw-bold">Sales Price</label>
+                            <input type="number" class="form-control" t-model="this.state.productForm.list_price"/>
+                        </div>
+                        <div class="col-md-3">
+                            <label class="small fw-bold">Cost</label>
+                            <input type="number" class="form-control" t-model="this.state.productForm.standard_price"/>
+                        </div>
+                        <div class="col-md-3">
+                            <label class="small fw-bold">Barcode</label>
+                            <input type="text" class="form-control" t-model="this.state.productForm.barcode"/>
+                        </div>
+                        <div class="col-md-3">
+                            <label class="small fw-bold">Image</label>
+                            <input type="file" class="form-control form-control-sm mt-1" accept="image/*" t-on-change="(ev) => this.onImageChange(ev, 'new')"/>
+                            <t t-if="this.state.productForm.image_1920">
+                                <div class="mt-2 text-center">
+                                    <img t-attf-src="data:image/jpeg;base64,{{this.state.productForm.image_1920}}" class="img-thumbnail" style="max-height: 80px;" />
+                                </div>
+                            </t>
+                        </div>
+
+                        <div class="col-md-3">
+                            <label class="small fw-bold">Weight (kg)</label>
+                            <input type="number" class="form-control" t-model="this.state.productForm.weight"/>
+                        </div>
+                        <div class="col-md-3">
+                            <label class="small fw-bold">Volume (m³)</label>
+                            <input type="number" class="form-control" t-model="this.state.productForm.volume"/>
+                        </div>
+                        <div class="col-md-3">
+                            <label class="small fw-bold">Income Account</label>
+                            <select class="form-select" t-model="this.state.productForm.income_account">
+                                <option value="static_inc">Default Income Account</option>
+                            </select>
+                        </div>
+                        <div class="col-md-3">
+                            <label class="small fw-bold">Expense Account</label>
+                            <select class="form-select" t-model="this.state.productForm.expense_account">
+                                <option value="static_exp">Default Expense Account</option>
+                            </select>
+                        </div>
+                    </div>
+                    
+                    <div class="mt-4 d-flex justify-content-end">
+                        <button class="btn btn-outline-secondary me-2 fw-bold" t-on-click="() => this.state.showProductAddForm = false">Cancel</button>
+                        <button class="btn btn-success fw-bold text-white px-4" t-on-click="saveProduct">Save Product</button>
+                    </div>
+                </div>
+            </t>
+
+            <t t-if="this.state.showProductDetails">
+                <div class="p-4 m-3 border rounded-3 bg-white shadow-sm">
+                    <div class="d-flex justify-content-between align-items-center mb-4">
+                        <h5 class="fw-bold mb-0">Edit Details: <t t-esc="this.state.currentProduct.name"/></h5>
+                        <button class="btn btn-sm btn-close" t-on-click="() => this.state.showProductDetails = false"></button>
+                    </div>
+                    
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <label class="small fw-bold">Product Name</label>
+                            <input type="text" class="form-control" t-model="this.state.currentProduct.name"/>
+                        </div>
+                        
+                        <div class="col-md-6 d-flex align-items-start">
+                            <div class="me-3">
+                                <t t-if="this.state.currentProduct.image_1920">
+                                    <img t-attf-src="data:image/jpeg;base64,{{this.state.currentProduct.image_1920}}" class="img-thumbnail rounded" style="max-width: 80px; max-height: 80px; object-fit: cover;"/>
+                                </t>
+                                <t t-else="">
+                                    <div class="border rounded d-flex justify-content-center align-items-center bg-light text-muted" style="width: 80px; height: 80px;">
+                                        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-image"><rect width="18" height="18" x="3" y="3" rx="2" ry="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/></svg>
+                                    </div>
+                                </t>
+                            </div>
+                            <div class="flex-grow-1">
+                                <label class="small fw-bold">Update Image</label>
+                                <input type="file" class="form-control form-control-sm" accept="image/*" t-on-change="(ev) => this.onImageChange(ev, 'edit')"/>
+                            </div>
+                        </div>
+
+                        <div class="col-md-3">
+                            <label class="small fw-bold">Sales Price</label>
+                            <input type="number" class="form-control" t-model="this.state.currentProduct.list_price"/>
+                        </div>
+                        <div class="col-md-3">
+                            <label class="small fw-bold">Cost</label>
+                            <input type="number" class="form-control" t-model="this.state.currentProduct.standard_price"/>
+                        </div>
+                        <div class="col-md-3">
+                            <label class="small fw-bold">Barcode</label>
+                            <input type="text" class="form-control" t-model="this.state.currentProduct.barcode"/>
+                        </div>
+                        <div class="col-md-3">
+                            <label class="small fw-bold">Weight (kg)</label>
+                            <input type="number" class="form-control" t-model="this.state.currentProduct.weight"/>
+                        </div>
+                        <div class="col-md-3">
+                            <label class="small fw-bold">Volume (m³)</label>
+                            <input type="number" class="form-control" t-model="this.state.currentProduct.volume"/>
+                        </div>
+                    </div>
+                    
+                    <div class="mt-4 text-end">
+                        <button class="btn btn-primary fw-bold px-4" t-on-click="updateProduct">Save Changes</button>
+                    </div>
+                </div>
+            </t>
+
+            <t t-if="!this.state.showProductDetails">
+                <div class="table-responsive">
+                    <table class="table table-hover mb-0 align-middle">
+                        <thead class="bg-light text-uppercase small fw-bold text-muted">
+                            <tr>
+                                <th class="border-top-0 ps-4">Product Details</th>
+                                <th class="border-top-0">Barcode</th>
+                                <th class="border-top-0 text-end">Price / Cost</th>
+                                <th class="border-top-0 text-end">On-Hand Qty</th>
+                                <th class="border-top-0 text-center pe-4">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <t t-foreach="this.state.inventory" t-as="item" t-key="item.id">
+                                <tr>
+                                    <td class="ps-4 d-flex align-items-center">
+                                        <t t-if="item.image_1920">
+                                            <img t-attf-src="data:image/jpeg;base64,{{item.image_1920}}" class="rounded me-3 shadow-sm" style="width: 40px; height: 40px; object-fit: cover;" />
+                                        </t>
+                                        <t t-else="">
+                                            <div class="rounded me-3 d-flex justify-content-center align-items-center bg-light text-muted border shadow-sm" style="width: 40px; height: 40px;">
+                                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-box"><path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z"/><path d="m3.3 7 8.7 5 8.7-5"/><path d="M12 22V12"/></svg>
+                                            </div>
+                                        </t>
+                                        <div>
+                                            <div class="text-dark fw-bold"><t t-esc="item.name"/></div>
+                                            <small class="text-muted">Type: <t t-esc="item.type === 'consu' or item.type === 'product' ? 'Goods' : item.type"/></small>
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <span class="text-muted small"><t t-esc="item.barcode || 'N/A'"/></span>
+                                    </td>
+                                    <td class="text-end">
+                                        <div class="fw-bold"><t t-esc="item.list_price"/></div>
+                                        <small class="text-muted"><t t-esc="item.standard_price"/></small>
+                                    </td>
+                                    <td class="text-end">
+                                        <span class="h6 fw-bold text-dark mb-0"><t t-esc="item.qty_available"/></span>
+                                        <span class="text-muted ms-1 small"><t t-esc="item.uom_name"/></span>
+                                    </td>
+                                    <td class="text-center pe-4">
+                                        <button class="btn btn-sm btn-light border fw-bold text-primary" t-on-click="() => this.viewProductDetails(item)">
+                                            View Details
+                                        </button>
+                                    </td>
+                                </tr>
+                            </t>
+                        </tbody>
+                    </table>
+                </div>
+            </t>
+        </t>
+
+        <t t-if="this.state.activeSubTab === 'management'">
+            <div class="p-4 bg-white border-bottom d-flex justify-content-between align-items-center">
+                <h6 class="fw-bold mb-0 text-dark">Stock Management Overview</h6>
+                <button class="btn btn-sm btn-dark fw-bold shadow-sm" t-on-click="() => this.state.showAdjustmentForm = !this.state.showAdjustmentForm">
+                    <t t-if="!this.state.showAdjustmentForm">+ Update Stock</t>
+                    <t t-else="">Close Stock Update</t>
                 </button>
             </div>
 
             <t t-if="this.state.showAdjustmentForm">
-                <div class="p-4 bg-light border-bottom rounded-3 m-3">
-                    <h6 class="fw-bold text-dark mb-3">Adjust Physical Stock</h6>
-                    <div class="row align-items-end">
-                        <div class="col-md-3">
+                <div class="p-4 bg-light border-bottom border-top">
+                    <div class="row align-items-end g-3">
+                        <div class="col-md-4">
                             <label class="small fw-bold">Select Product</label>
-                            <select class="form-select form-control" t-model="this.state.adjustmentForm.product">
+                            <select class="form-select shadow-sm" t-model="this.state.adjustmentForm.product_id">
                                 <option value="">-- Choose SKU --</option>
                                 <t t-foreach="this.state.inventory" t-as="inv" t-key="inv.id">
-                                    <option t-att-value="inv.name"><t t-esc="inv.name"/></option>
+                                    <option t-att-value="inv.id"><t t-esc="inv.name"/></option>
                                 </t>
                             </select>
+                        </div>
+                        <div class="col-md-2">
+                            <label class="small fw-bold text-muted">Current On-Hand</label>
+                            <input type="text" class="form-control bg-white shadow-sm" t-att-value="this.selectedProductStock" disabled="1"/>
                         </div>
                         <div class="col-md-3">
-                            <label class="small fw-bold">Action</label>
-                            <select class="form-select form-control" t-model="this.state.adjustmentForm.type">
-                                <option value="add">Stock In (Add)</option>
-                                <option value="remove">Stock Out (Deduct)</option>
-                            </select>
+                            <label class="small fw-bold text-success">Quantity to Add</label>
+                            <input type="number" class="form-control border-success shadow-sm" t-model="this.state.adjustmentForm.qty" min="1"/>
                         </div>
-                        <div class="col-md-2">
-                            <label class="small fw-bold">Quantity</label>
-                            <input type="number" class="form-control" t-model="this.state.adjustmentForm.qty" min="1"/>
-                        </div>
-                        <div class="col-md-2">
-                            <label class="small fw-bold">Target Warehouse</label>
-                            <select class="form-select form-control" t-model="this.state.adjustmentForm.warehouse">
-                                <option value="">-- Facility --</option>
-                                <t t-foreach="this.state.warehouses" t-as="wh" t-key="wh.id">
-                                    <option t-att-value="wh.name"><t t-esc="wh.name"/></option>
-                                </t>
-                            </select>
-                        </div>
-                        <div class="col-md-2 d-flex pb-1">
-                            <button class="btn btn-outline-secondary w-50 me-2 fw-bold" t-on-click="() => this.state.showAdjustmentForm = false">Cancel</button>
-                            <button class="btn btn-success w-50 fw-bold text-white" t-on-click="saveAdjustment">Apply</button>
+                        <div class="col-md-3 d-flex pb-1">
+                            <button class="btn btn-outline-secondary w-50 me-2 fw-bold" t-on-click="() => { this.state.showAdjustmentForm = false; this.state.adjustmentForm = { product_id: '', qty: 0 }; }">Cancel</button>
+                            <button class="btn btn-success w-50 fw-bold text-white shadow-sm" t-on-click="saveAdjustment">Apply</button>
                         </div>
                     </div>
                 </div>
             </t>
 
-            <div class="table-responsive">
-                <table class="table table-hover mb-0">
+            <div class="table-responsive p-0 bg-white">
+                <table class="table table-hover align-middle mb-0">
                     <thead class="bg-light text-uppercase small fw-bold text-muted">
                         <tr>
-                            <th class="border-top-0 ps-4">Product Details</th>
-                            <th class="border-top-0">Category</th>
-                            <th class="border-top-0 text-end">Physical Quantity</th>
-                            <th class="border-top-0 text-end pe-4">Stock Health</th>
+                            <th class="border-top-0 ps-4 py-3">Product Name</th>
+                            <th class="border-top-0 py-3 text-end">On-Hand Qty</th>
+                            <th class="border-top-0 py-3 text-end">Available to Book</th>
+                            <th class="border-top-0 py-3 text-end">Forecast</th>
+                            <th class="border-top-0 py-3 text-end pe-4">Unit Price</th>
                         </tr>
                     </thead>
                     <tbody>
                         <t t-foreach="this.state.inventory" t-as="item" t-key="item.id">
                             <tr>
-                                <td class="ps-4 align-middle">
-                                    <div class="text-dark fw-bold"><t t-esc="item.name"/></div>
-                                    <small class="text-muted">SKU: <t t-esc="item.id"/></small>
+                                <td class="ps-4 fw-bold text-dark">
+                                    <t t-esc="item.name"/>
                                 </td>
-                                <td class="align-middle">
-                                    <span class="badge bg-secondary bg-opacity-10 text-dark border-secondary border-opacity-25 px-2 py-1 fw-bold">
-                                        <t t-esc="item.category"/>
-                                    </span>
+                                <td class="text-end fw-bold">
+                                    <t t-esc="item.qty_available || 0"/> <span class="text-muted small ms-1"><t t-esc="item.uom_name"/></span>
                                 </td>
-                                <td class="align-middle text-end">
-                                    <span class="h5 fw-bold text-dark mb-0"><t t-esc="item.stock"/></span>
-                                    <span class="text-muted ms-1 small"><t t-esc="item.unit"/></span>
+                                <td class="text-end text-primary fw-bold">
+                                    <t t-esc="item.shahtaj_qty_bookable || 0"/> <span class="text-muted small ms-1"><t t-esc="item.uom_name"/></span>
                                 </td>
-                                <td class="align-middle text-end pe-4">
-                                    <span t-attf-class="fw-bold #{item.status === 'Healthy' ? 'text-success' : item.status === 'Low Stock' ? 'text-warning' : 'text-danger'}">
-                                        <t t-esc="item.status"/>
-                                    </span>
+                                <td class="text-end text-success fw-bold">
+                                    <t t-esc="item.virtual_available || 0"/> <span class="text-muted small ms-1"><t t-esc="item.uom_name"/></span>
+                                </td>
+                                <td class="text-end pe-4 text-muted fw-bold">
+                                    <t t-esc="item.list_price"/>
+                                </td>
+                            </tr>
+                        </t>
+                        <t t-if="this.state.inventory.length === 0">
+                            <tr>
+                                <td colspan="5" class="text-center py-5 text-muted">
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-search mb-2 opacity-50"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+                                    <p class="mb-0">No products found in inventory.</p>
                                 </td>
                             </tr>
                         </t>
@@ -124,79 +330,7 @@
         </t>
 
         <t t-if="this.state.activeSubTab === 'warehouses'">
-            <div class="p-4 bg-white border-bottom d-flex justify-content-between align-items-center">
-                <h6 class="fw-bold mb-0">Storage Facilities Network</h6>
-                <button class="btn btn-sm btn-dark d-flex align-items-center text-white" t-on-click="() => this.state.showWarehouseForm = true">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-plus me-1"><path d="M5 12h14"/><path d="M12 5v14"/></svg>
-                    Register Facility
-                </button>
-            </div>
-
-            <t t-if="this.state.showWarehouseForm">
-                <div class="p-4 bg-light border-bottom rounded-3 m-3">
-                    <div class="row align-items-end">
-                        <div class="col-md-3">
-                            <label class="small fw-bold">Facility Name</label>
-                            <input type="text" class="form-control" t-model="this.state.warehouseForm.name" placeholder="e.g. West Hub"/>
-                        </div>
-                        <div class="col-md-3">
-                            <label class="small fw-bold">Facility Type</label>
-                            <select class="form-select form-control" t-model="this.state.warehouseForm.type">
-                                <option value="Main Warehouse">Main Warehouse</option>
-                                <option value="Sub-Warehouse">Sub-Warehouse</option>
-                            </select>
-                        </div>
-                        <div class="col-md-3">
-                            <label class="small fw-bold">Location Details</label>
-                            <input type="text" class="form-control" t-model="this.state.warehouseForm.location" placeholder="City / Area Code"/>
-                        </div>
-                        <div class="col-md-3 d-flex pb-1">
-                            <button class="btn btn-outline-secondary me-2 w-50 fw-bold" t-on-click="() => this.state.showWarehouseForm = false">Cancel</button>
-                            <button class="btn btn-success w-50 fw-bold text-white" t-on-click="saveWarehouse">Register</button>
-                        </div>
-                    </div>
-                </div>
             </t>
-
-            <div class="table-responsive">
-                <table class="table table-hover mb-0">
-                    <thead class="bg-light text-uppercase small fw-bold text-muted">
-                        <tr>
-                            <th class="border-top-0 ps-4">Facility Details</th>
-                            <th class="border-top-0">Type Designation</th>
-                            <th class="border-top-0">Facility Manager</th>
-                            <th class="border-top-0 text-end pe-4">Operational Status</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <t t-foreach="this.state.warehouses" t-as="wh" t-key="wh.id">
-                            <tr>
-                                <td class="ps-4 align-middle">
-                                    <div class="text-dark fw-bold"><t t-esc="wh.name"/></div>
-                                    <small class="text-muted d-flex align-items-center mt-1">
-                                        <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-map-pin me-1"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg>
-                                        <t t-esc="wh.location"/>
-                                    </small>
-                                </td>
-                                <td class="align-middle">
-                                    <span t-attf-class="badge #{wh.type === 'Main Warehouse' ? 'bg-primary' : 'bg-info'} text-white px-2 py-1">
-                                        <t t-esc="wh.type"/>
-                                    </span>
-                                </td>
-                                <td class="align-middle text-dark fw-bold">
-                                    <t t-esc="wh.manager"/>
-                                </td>
-                                <td class="align-middle text-end pe-4">
-                                    <span t-attf-class="fw-bold #{wh.status === 'Active' ? 'text-success' : 'text-secondary'}">
-                                        <t t-esc="wh.status"/>
-                                    </span>
-                                </td>
-                            </tr>
-                        </t>
-                    </tbody>
-                </table>
-            </div>
-        </t>
 
     </div>
     </t>

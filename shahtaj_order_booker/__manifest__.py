@@ -1,35 +1,77 @@
 # -*- coding: utf-8 -*-
 {
     'name': 'Shahtaj Order Booker',
-    'version': '19.0.1.0.2',
+    'version': '19.0.1.0.17',
     'category': 'Sales',
-    'summary': 'Field order booking with routes, visits, GPS, and targets',
-    'depends': ['base', 'contacts', 'sale', 'mail', 'account'],
+    'summary': 'Field order booking with routes, visits, GPS, targets, and inventory',
+
+    'depends': [
+        'base',
+        'contacts',
+        'sale',
+        'sale_stock',
+        'mail',
+        'account',
+        'stock',
+    ],
+
     'data': [
+
+        # ===========================
+        # SECURITY
+        # ===========================
         'security/shahtaj_security.xml',
         'security/ir.model.access.csv',
-        'security/shahtaj_partner_access_fix.xml',
         'security/shahtaj_partner_access.xml',
+        'security/shahtaj_partner_access_fix.xml',
+        'security/shahtaj_partner_access_accounting_fix.xml',
         'security/shahtaj_record_rules.xml',
         'security/shahtaj_record_rules_fix.xml',
+
+        # ===========================
+        # DATA
+        # ===========================
         'data/shahtaj_account_data.xml',
+        'data/shahtaj_product_data.xml',
+        'data/shahtaj_api_data.xml',
         'data/shahtaj_cron.xml',
         'data/shahtaj_users.xml',
+
+        # ===========================
+        # VIEWS (Actions first)
+        # ===========================
         'views/shahtaj_route_views.xml',
         'views/shahtaj_zone_views.xml',
         'views/shahtaj_partner_views.xml',
+        'views/shahtaj_visit_views.xml',
+        'views/shahtaj_accounting_views.xml',
+        'views/shahtaj_sale_accounting_views.xml',
         'views/shahtaj_schedule_views.xml',
         'views/shahtaj_visit_task_views.xml',
-        'views/shahtaj_visit_views.xml',
-        'wizard/shahtaj_visit_checkin_views.xml',
         'views/shahtaj_target_views.xml',
         'views/shahtaj_schedule_hub_views.xml',
         'views/shahtaj_visit_hub_views.xml',
         'views/shahtaj_order_booker_users_views.xml',
+        'views/shahtaj_product_views.xml',
+        'views/shahtaj_product_inventory_views.xml',
+        'views/shahtaj_sale_stock_fix.xml',
+
+        # ===========================
+        # WIZARDS
+        # ===========================
+        'wizard/shahtaj_visit_checkin_views.xml',
         'wizard/shahtaj_generate_tasks_views.xml',
         'wizard/shahtaj_create_order_booker_views.xml',
+        'wizard/shahtaj_quick_add_product_views.xml',
+        'wizard/shahtaj_add_stock_views.xml',
+
+        # ===========================
+        # MENUS (LAST)
+        # ===========================
         'views/shahtaj_menus.xml',
+        'views/shahtaj_api_test_menu.xml',
     ],
+
     'application': True,
     'installable': True,
     'license': 'LGPL-3',

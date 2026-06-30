@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """Link confirmed sales orders back to the shop visit and daily task."""
-from odoo import fields, models
+from odoo import _, fields, models
 
 
 class SaleOrder(models.Model):
@@ -20,3 +20,40 @@ class SaleOrder(models.Model):
         copy=False,
         index=True,
     )
+    shahtaj_order_booker_id = fields.Many2one(
+        'res.users',
+        string='Order Booker',
+        related='shahtaj_visit_id.order_booker_id',
+        store=True,
+        readonly=True,
+    )
+    shahtaj_shop_id = fields.Many2one(
+        'res.partner',
+        string='Shop',
+        related='partner_id',
+        store=True,
+        readonly=True,
+    )
+
+    def action_shahtaj_view_visit(self):
+        self.ensure_one()
+        if not self.shahtaj_visit_id:
+            return False
+        return {
+            'type': 'ir.actions.act_window',
+            'name': _('Shop Visit'),
+            'res_model': 'shahtaj.visit',
+            'res_id': self.shahtaj_visit_id.id,
+            'view_mode': 'form',
+            'target': 'current',
+        }
+    def action_create_invoice_portal(self):
+        """
+        Public wrapper to allow OWL frontend RPC calls to create invoices.
+        Internal private methods cannot be called directly over RPC.
+        """
+        # Call the native private method internally
+        invoices = self._create_invoices()
+        
+        # Return the created invoice IDs just in case the frontend needs them later
+        return invoices.ids if invoices else []

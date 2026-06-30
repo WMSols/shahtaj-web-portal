@@ -28,7 +28,9 @@ class ShahtajRoute(models.Model):
 
     def _compute_shop_count(self):
         for route in self:
-            route.shop_count = len(route.shop_ids)
+            route.shop_count = len(route.shop_ids.filtered(
+                lambda s: s.shop_approval_state == 'approved'
+            ))
 
     @api.constrains('name', 'zone_id')
     def _check_required_fields(self):

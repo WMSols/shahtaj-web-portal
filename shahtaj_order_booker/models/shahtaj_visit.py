@@ -96,6 +96,11 @@ class ShahtajVisit(models.Model):
         readonly=True,
         copy=False,
     )
+    sale_order_name = fields.Char(
+        string='Order Reference',
+        related='sale_order_id.name',
+        readonly=True,
+    )
     order_amount = fields.Monetary(
         string='Order Total',
         related='sale_order_id.amount_total',
@@ -199,6 +204,12 @@ class ShahtajVisit(models.Model):
         task.ensure_one()
         if task.order_booker_id != self.env.user and not self.env.su:
             raise UserError(_('You can only check in to your own visit tasks.'))
+        if task.shop_id.shop_approval_state != 'approved':
+            raise UserError(_(
+                'Shop "%(shop)s" is not approved yet. '
+                'You cannot visit until the distributor approves it.',
+                shop=task.shop_id.name,
+            ))
         if task.state in ('completed', 'cancelled', 'skipped'):
             raise UserError(_('This visit task is already closed.'))
         existing = self.search([('visit_task_id', '=', task.id)], limit=1)
@@ -231,6 +242,33 @@ class ShahtajVisit(models.Model):
             'visit_id': visit.id,
         })
         return visit
+
+    def action_open_sale_order(self):
+        self.ensure_one()
+        if not self.sale_order_id:
+            raise UserError(_('No sales order linked to this visit.'))
+        return {
+            'type': 'ir.actions.act_window',
+            'name': _('Sales Order'),
+            'res_model': 'sale.order',
+            'res_id': self.sale_order_id.id,
+            'view_mode': 'form',
+            'target': 'current',
+        }
+
+    def action_open_shop(self):
+        self.ensure_one()
+        return {
+            'type': 'ir.actions.act_window',
+            'name': _('Shop'),
+            'res_model': 'res.partner',
+            'res_id': self.shop_id.id,
+            'view_mode': 'form',
+            'target': 'current',
+            'views': [
+                (self.env.ref('shahtaj_order_booker.view_shahtaj_shop_form').id, 'form'),
+            ],
+        }
 
     def _finish_visit(self, outcome):
         """Close visit and mark linked task completed (order or no_order)."""
@@ -270,6 +308,22 @@ class ShahtajVisit(models.Model):
                 limit=shop.credit_limit,
             ))
 
+    def _check_visit_line_stock(self):
+        """Ensure each product total in this visit does not exceed bookable qty."""
+        for visit in self.filtered(lambda v: v.state == 'in_progress'):
+            totals = {}
+            for line in visit.line_ids:
+                if not line.product_id:
+                    continue
+                totals.setdefault(line.product_id, 0.0)
+                totals[line.product_id] += line.product_uom_qty
+            exclude_lines = visit.line_ids.ids
+            for product, total_qty in totals.items():
+                product._check_shahtaj_bookable_qty(
+                    total_qty,
+                    exclude_visit_line_ids=exclude_lines,
+                )
+
     def action_place_order(self):
         """Create and confirm sale order from visit lines; finish visit."""
         self.ensure_one()
@@ -277,6 +331,7 @@ class ShahtajVisit(models.Model):
             raise UserError(_('This visit is not in progress.'))
         if not self.line_ids:
             raise UserError(_('Add at least one product before placing an order.'))
+        self._check_visit_line_stock()
         order_lines = []
         order_total = 0.0
         for line in self.line_ids:
@@ -350,6 +405,14 @@ class ShahtajVisitLine(models.Model):
         required=True,
         domain=[('sale_ok', '=', True)],
     )
+    shahtaj_qty_bookable = fields.Float(
+        string='Available to Book',
+        compute='_compute_shahtaj_qty_bookable',
+        digits='Product Unit of Measure',
+    )
+    shahtaj_qty_unlimited = fields.Boolean(
+        compute='_compute_shahtaj_qty_bookable',
+    )
     product_uom_qty = fields.Float(
         string='Quantity',
         default=1.0,
@@ -365,10 +428,39 @@ class ShahtajVisitLine(models.Model):
         compute='_compute_subtotal',
     )
 
+    @api.depends(
+        'product_id',
+        'product_uom_qty',
+        'visit_id.state',
+        'visit_id.line_ids.product_uom_qty',
+        'visit_id.line_ids.product_id',
+    )
+    def _compute_shahtaj_qty_bookable(self):
+        for line in self:
+            if not line.product_id:
+                line.shahtaj_qty_bookable = 0.0
+                line.shahtaj_qty_unlimited = False
+                continue
+            exclude = line.visit_id.line_ids.ids if line.visit_id else line.ids
+            bookable = line.product_id._get_shahtaj_bookable_qty(
+                exclude_visit_line_ids=exclude,
+            )
+            if bookable is None:
+                line.shahtaj_qty_unlimited = True
+                line.shahtaj_qty_bookable = 0.0
+            else:
+                line.shahtaj_qty_unlimited = False
+                line.shahtaj_qty_bookable = bookable
+
     @api.onchange('product_id')
     def _onchange_product_id(self):
         if self.product_id:
             self.price_unit = self.product_id.lst_price
+
+    @api.constrains('product_uom_qty', 'product_id', 'visit_id')
+    def _check_bookable_quantity(self):
+        for visit in self.mapped('visit_id').filtered(lambda v: v.state == 'in_progress'):
+            visit._check_visit_line_stock()
 
     @api.depends('product_uom_qty', 'price_unit')
     def _compute_subtotal(self):
