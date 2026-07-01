@@ -105,8 +105,7 @@ class ProductTemplate(models.Model):
             ]
         return super().create(vals_list)
 
-    # Renamed to make it a public callable method for RPC
-    def action_shahtaj_set_on_hand_qty(self, quantity):
+    def _shahtaj_set_on_hand_qty(self, quantity):
         """Set absolute on-hand quantity in the main warehouse."""
         self.ensure_one()
         if not self.is_storable:
@@ -129,10 +128,9 @@ class ProductTemplate(models.Model):
             'inventory_quantity': quantity,
         })._apply_inventory()
 
-    # Renamed to make it a public callable method for RPC
-    def action_shahtaj_add_on_hand_qty(self, quantity):
+    def _shahtaj_add_on_hand_qty(self, quantity):
         """Increase on-hand quantity."""
         self.ensure_one()
         if float_compare(quantity, 0.0, precision_rounding=self.uom_id.rounding) <= 0:
             raise UserError(_('Quantity to add must be greater than zero.'))
-        self.action_shahtaj_set_on_hand_qty(self.qty_available + quantity)
+        self._shahtaj_set_on_hand_qty(self.qty_available + quantity)

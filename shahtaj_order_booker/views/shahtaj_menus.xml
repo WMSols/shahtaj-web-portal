@@ -63,11 +63,47 @@
               sequence="39"
               groups="shahtaj_order_booker.group_shahtaj_distributor"/>
 
+    <!-- Order booker only (not distributor) — My Tasks Today opens first in the app -->
+    <menuitem id="menu_shahtaj_visit_task_today"
+              name="My Tasks Today"
+              parent="menu_shahtaj_root"
+              action="action_shahtaj_visit_task_today"
+              sequence="20"
+              groups="shahtaj_order_booker.group_shahtaj_order_booker"/>
+
+    <menuitem id="menu_shahtaj_my_weekly_schedule"
+              name="My Weekly Schedule"
+              parent="menu_shahtaj_root"
+              action="action_shahtaj_my_weekly_schedule"
+              sequence="21"
+              groups="shahtaj_order_booker.group_shahtaj_order_booker"/>
+
+    <menuitem id="menu_shahtaj_shop_register"
+              name="My Registered Shops"
+              parent="menu_shahtaj_root"
+              action="action_shahtaj_shop_register"
+              sequence="22"
+              groups="shahtaj_order_booker.group_shahtaj_order_booker"/>
+
     <menuitem id="menu_shahtaj_my_visits"
               name="My Shop Visits"
               parent="menu_shahtaj_root"
               action="action_shahtaj_my_visits"
-              sequence="29"
+              sequence="23"
+              groups="shahtaj_order_booker.group_shahtaj_order_booker"/>
+
+    <menuitem id="menu_shahtaj_visit_target_my"
+              name="My Targets"
+              parent="menu_shahtaj_root"
+              action="action_shahtaj_visit_target_my"
+              sequence="24"
+              groups="shahtaj_order_booker.group_shahtaj_order_booker"/>
+
+    <menuitem id="menu_shahtaj_active_visit"
+              name="Active Visit"
+              parent="menu_shahtaj_root"
+              action="action_shahtaj_active_visit"
+              sequence="25"
               groups="shahtaj_order_booker.group_shahtaj_order_booker"/>
 
     <menuitem id="menu_shahtaj_visit_target"
@@ -84,111 +120,11 @@
               sequence="40"
               groups="shahtaj_order_booker.group_shahtaj_distributor"/>
 
-    <!-- Order booker only (not distributor) -->
-    <menuitem id="menu_shahtaj_shop_register"
-              name="Register Shop"
-              parent="menu_shahtaj_root"
-              action="action_shahtaj_shop_register"
-              sequence="25"
-              groups="shahtaj_order_booker.group_shahtaj_order_booker"/>
-
-    <menuitem id="menu_shahtaj_my_weekly_schedule"
-              name="My Weekly Schedule"
-              parent="menu_shahtaj_root"
-              action="action_shahtaj_my_weekly_schedule"
-              sequence="26"
-              groups="shahtaj_order_booker.group_shahtaj_order_booker"/>
-
-    <menuitem id="menu_shahtaj_visit_task_today"
-              name="My Tasks Today"
-              parent="menu_shahtaj_root"
-              action="action_shahtaj_visit_task_today"
-              sequence="27"
-              groups="shahtaj_order_booker.group_shahtaj_order_booker"/>
-
-    <menuitem id="menu_shahtaj_visit_target_my"
-              name="My Targets"
-              parent="menu_shahtaj_root"
-              action="action_shahtaj_visit_target_my"
-              sequence="28"
-              groups="shahtaj_order_booker.group_shahtaj_order_booker"/>
-                  <!-- Menus under Shahtaj -->
     <menuitem id="menu_shahtaj_accounting"
-              name="Accounting"
+              name="7. Shop Accounting"
               parent="menu_shahtaj_root"
-              sequence="50"
+              action="action_shahtaj_accounting_hub"
+              sequence="42"
               groups="shahtaj_order_booker.group_shahtaj_distributor"/>
-
-    <menuitem id="menu_shahtaj_field_sales_orders"
-              name="Field Sales Orders"
-              parent="menu_shahtaj_accounting"
-              action="action_shahtaj_field_sales_orders"
-              sequence="10"/>
-
-    <menuitem id="menu_shahtaj_orders_to_invoice"
-              name="Orders to Invoice"
-              parent="menu_shahtaj_accounting"
-              action="action_shahtaj_orders_to_invoice"
-              sequence="15"/>
-
-    <menuitem id="menu_shahtaj_customer_invoices"
-              name="Customer Invoices"
-              parent="menu_shahtaj_accounting"
-              action="action_shahtaj_customer_invoices"
-              sequence="20"/>
-
-    <menuitem id="menu_shahtaj_customer_payments"
-              name="Customer Payments"
-              parent="menu_shahtaj_accounting"
-              action="action_shahtaj_customer_payments"
-              sequence="25"/>
-
-    <menuitem id="menu_shahtaj_shop_balances"
-              name="Shop Balances"
-              parent="menu_shahtaj_accounting"
-              action="action_shahtaj_shop_balances"
-              sequence="30"/>
-              <menuitem id="menu_shahtaj_products"
-              name="Products"
-              parent="menu_shahtaj_root"
-              sequence="45"
-              groups="shahtaj_order_booker.group_shahtaj_distributor"/>
-
-    <menuitem id="menu_shahtaj_quick_add_product"
-              name="Quick Add Product"
-              parent="menu_shahtaj_products"
-              action="action_shahtaj_quick_add_product"
-              sequence="5"/>
-
-    <menuitem id="menu_shahtaj_products_list"
-              name="Product List"
-              parent="menu_shahtaj_products"
-              action="action_shahtaj_product_list"
-              sequence="10"/>
-
-    <menuitem id="menu_shahtaj_products_advanced"
-              name="Advanced Product Settings"
-              parent="menu_shahtaj_products"
-              action="action_shahtaj_product_advanced"
-              sequence="90"/>
-
-    <menuitem id="menu_shahtaj_inventory"
-              name="Inventory"
-              parent="menu_shahtaj_root"
-              sequence="46"
-              groups="shahtaj_order_booker.group_shahtaj_distributor"/>
-
-    <menuitem id="menu_shahtaj_add_stock"
-              name="Add Stock"
-              parent="menu_shahtaj_inventory"
-              action="action_shahtaj_add_stock"
-              sequence="5"/>
-
-    <menuitem id="menu_shahtaj_inventory_overview"
-              name="Stock Overview"
-              parent="menu_shahtaj_inventory"
-              action="action_shahtaj_stock_overview"
-              sequence="10"/>
-    
 
 </odoo>

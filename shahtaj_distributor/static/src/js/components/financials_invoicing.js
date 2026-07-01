@@ -9,65 +9,27 @@ export class FinancialsInvoicing extends Component {
         this.action = useService("action");
 
         this.state = useState({
-            // --- TAB NAVIGATION ---
             activeSubTab: 'invoices',
-            invoiceSubTab: 'customer_invoices',
+            invoiceSubTab: 'orders',
             
-            // --- DETAIL VIEWS & MODALS ---
-            selectedInvoice: null,
+            // Detail Views
             selectedOrder: null, 
-            showLimitForm: false,
+            selectedOrderLines: [], // NEW: Stores the fetched products for the selected order
+            selectedInvoice: null,
+            selectedPayment: null,
+            selectedShop: null,
             
-            // Payment Modal State
+            // Payment Modal
             showPaymentModal: false,
-            paymentForm: { journal_id: '', method: 'manual' },
+            paymentForm: { journal_id: '', amount: 0, date: '', invoice_id: null, invoice_name: '' },
             journals: [], 
             
-            limitForm: { shopId: null, newLimit: '' },
-
-            // --- FILTER & PAGINATION STATE ---
-            itemsPerPage: 5,
-            
-            ordersFilters: { search: '' },
-            ordersPage: 1,
-            
-            invoiceFilters: { search: '', status: '', minAmount: '', maxAmount: '', startDate: '', endDate: '' },
-            invoicePage: 1,
-            
-            paymentsFilters: { search: '', method: '' },
-            paymentsPage: 1,
-            
-            balancesFilters: { search: '' },
-            balancesPage: 1,
-            
-            creditFilters: { search: '', status: '' },
-            creditPage: 1,
-
-            // --- DATA ARRAYS ---
+            // Data Arrays
             orders: [],
             invoices: [],
-            
-            // Static Mock Data for other tabs to maintain structural integrity
-            payments: [
-                { id: "PAY-2606-050", shop: "Al-Hafeez Supermart", date: "2026-06-20", amount: "120,500", method: "Bank Transfer", status: "Posted" },
-                { id: "PAY-2606-051", shop: "Ali Super Store", date: "2026-06-22", amount: "12,500", method: "Cash", status: "Posted" },
-                { id: "PAY-2606-052", shop: "Bismillah General Store", date: "2026-06-15", amount: "32,000", method: "Cheque", status: "Posted" },
-                { id: "PAY-2606-053", shop: "Al-Hafeez Supermart", date: "2026-05-05", amount: "40,000", method: "Bank Transfer", status: "Posted" }
-            ],
-            balances: [
-                { shop: "Bismillah General Store", billed: "250,000", paid: "205,000", outstanding: "45,000" },
-                { shop: "Al-Hafeez Supermart", billed: "500,000", paid: "500,000", outstanding: "0" },
-                { shop: "Madina Traders", billed: "150,000", paid: "64,500", outstanding: "85,500" },
-                { shop: "Kashmir Mart", billed: "120,000", paid: "105,000", outstanding: "15,000" },
-                { shop: "Zaman Wholesale", billed: "800,000", paid: "550,000", outstanding: "250,000" }
-            ],
-            credits: [
-                { id: "SH-5042", shop: "Bismillah General Store", limit: 100000, utilized: 45000, status: "Healthy" },
-                { id: "SH-5043", shop: "Al-Hafeez Supermart", limit: 250000, utilized: 245000, status: "Critical" },
-                { id: "SH-5044", shop: "Madina Traders", limit: 50000, utilized: 67500, status: "Exceeded" },
-                { id: "SH-5045", shop: "Kashmir Mart", limit: 150000, utilized: 20000, status: "Healthy" },
-                { id: "SH-5046", shop: "Awais Kiryana", limit: 200000, utilized: 89000, status: "Healthy" }
-            ]
+            payments: [],
+            balances: [],
+            credits: [] 
         });
 
         onWillStart(async () => {
@@ -75,217 +37,211 @@ export class FinancialsInvoicing extends Component {
         });
     }
 
-    // --- DATA FETCHING (ORM WIRING) ---
+    // ==========================================
+    // DATA FETCHING
+    // ==========================================
     async fetchRealData() {
+        // 1. Orders to Invoice (UPGRADED with new fields)
         try {
-            // Fetch Orders to Invoice
             const ordersData = await this.orm.searchRead(
                 "sale.order",
-                [["invoice_status", "=", "to invoice"]],
-                ["name", "partner_id", "date_order", "amount_total", "state"]
+                [["invoice_status", "=", "to invoice"], ["shahtaj_visit_id", "!=", false]],
+                [
+                    "name", "partner_id", "date_order", "amount_total", "amount_untaxed", 
+                    "state", "user_id", "payment_term_id", "pricelist_id", "shahtaj_visit_id"
+                ]
             );
             this.state.orders = ordersData.map(o => ({
                 id: o.id,
                 display_name: o.name,
-                shop: o.partner_id[1],
+                shop: o.partner_id ? o.partner_id[1] : 'Unknown',
+                booker: o.user_id ? o.user_id[1] : 'Unassigned', // Added Order Booker
                 date: o.date_order ? o.date_order.split(' ')[0] : 'N/A', 
-                amount: o.amount_total.toLocaleString(),
-                status: o.state,
-                raw: o
+                amount: (o.amount_total || 0).toLocaleString(),
+                rawAmount: o.amount_total || 0,
+                untaxedAmount: (o.amount_untaxed || 0).toLocaleString(),
+                paymentTerms: o.payment_term_id ? o.payment_term_id[1] : 'Immediate',
+                pricelist: o.pricelist_id ? o.pricelist_id[1] : 'Default (PKR)',
+                visit: o.shahtaj_visit_id ? o.shahtaj_visit_id[1] : 'N/A',
             }));
+        } catch (error) { console.error("Orders Fetch Error:", error); }
 
-            // Fetch Customer Invoices
+        // 2. Customer Invoices
+        try {
             const invoicesData = await this.orm.searchRead(
                 "account.move",
-                [["move_type", "=", "out_invoice"]],
-                ["name", "partner_id", "invoice_date", "invoice_date_due", "amount_total", "payment_state", "state"]
+                [["move_type", "in", ["out_invoice"]], ["partner_id.is_shahtaj_shop", "=", true]],
+                ["name", "partner_id", "invoice_date", "amount_total", "payment_state", "state"]
             );
             this.state.invoices = invoicesData.map(inv => ({
                 id: inv.id,
                 display_name: inv.name,
-                shop: inv.partner_id[1],
-                date: inv.invoice_date,
-                dueDate: inv.invoice_date_due,
-                amount: inv.amount_total.toLocaleString(),
-                status: inv.payment_state === 'paid' ? 'Paid' : (inv.state === 'posted' ? 'Pending' : 'Draft'),
-                raw: inv
+                shop: inv.partner_id ? inv.partner_id[1] : 'Unknown',
+                date: inv.invoice_date || 'Draft',
+                amount: (inv.amount_total || 0).toLocaleString(),
+                rawAmount: inv.amount_total || 0,
+                status: inv.state === 'draft' ? 'Draft' : (inv.payment_state === 'paid' || inv.payment_state === 'in_payment' ? 'Paid' : 'Posted')
+            }));
+        } catch (error) { console.error("Invoices Fetch Error:", error); }
+
+        // Fetch Bank/Cash Journals for Payment Wizard
+        try {
+            this.state.journals = await this.orm.searchRead("account.journal", [["type", "in", ["bank", "cash"]]], ["name", "type"]);
+        } catch (error) { console.error("Journals Fetch Error:", error); }
+
+        // 3. Customer Payments
+        try {
+            const paymentsData = await this.orm.searchRead(
+                "account.payment",
+                [["partner_id.is_shahtaj_shop", "=", true]], 
+                ["name", "partner_id", "date", "amount", "journal_id", "memo", "state"]
+            );
+            this.state.payments = paymentsData.map(pay => ({
+                id: pay.id,
+                display_name: pay.name || 'Draft Payment',
+                shop: pay.partner_id ? pay.partner_id[1] : 'Unknown',
+                date: pay.date || 'N/A',
+                amount: (pay.amount || 0).toLocaleString(),
+                method: pay.journal_id ? pay.journal_id[1] : 'Manual',
+                ref: pay.memo || 'N/A', 
+                status: pay.state === 'posted' ? 'Posted' : 'Draft'
+            }));
+        } catch (error) { console.error("Payments Fetch Error:", error); }
+
+        // 4. Shop Balances & Credit Risk Monitoring
+        try {
+            const shopsData = await this.orm.searchRead(
+                "res.partner",
+                [["is_shahtaj_shop", "=", true], ["shop_approval_state", "=", "approved"]],
+                ["name", "owner_name", "route_id", "credit_limit", "credit"] 
+            );
+            
+            this.state.balances = shopsData.map(shop => ({
+                id: shop.id,
+                shop: shop.name,
+                owner: shop.owner_name || 'N/A',
+                route: shop.route_id ? shop.route_id[1] : 'Unassigned',
+                limit: (shop.credit_limit || 0).toLocaleString(),
+                rawLimit: shop.credit_limit || 0,
+                outstanding: (shop.credit || 0).toLocaleString(), 
             }));
 
-            // Fetch Bank and Cash Journals for the Payment Modal
-            const journalsData = await this.orm.searchRead(
-                "account.journal",
-                [["type", "in", ["bank", "cash"]]],
-                ["name", "type"]
-            );
-            this.state.journals = journalsData;
-
-        } catch (error) {
-            console.error("ORM Fetch Error. Ensure you are running within Odoo environment.", error);
-        }
+            this.state.credits = shopsData.map(shop => {
+                const limit = shop.credit_limit || 0;
+                const utilized = shop.credit || 0;
+                let status = "Healthy";
+                
+                if (limit > 0) {
+                    if (utilized > limit) status = "Exceeded";
+                    else if (utilized >= limit * 0.85) status = "Critical";
+                }
+                
+                return {
+                    id: shop.id,
+                    shop: shop.name,
+                    limit: limit.toLocaleString(),
+                    rawLimit: limit,
+                    utilized: utilized.toLocaleString(),
+                    rawUtilized: utilized,
+                    available: Math.max(0, limit - utilized).toLocaleString(),
+                    status: status
+                };
+            });
+        } catch (error) { console.error("Shop Balances Fetch Error:", error); }
     }
 
-    // --- TAB NAVIGATION ---
-    setSubTab(tabName) {
-        this.state.activeSubTab = tabName;
-        this.resetDetailViews();
-    }
-
-    setInvoiceSubTab(subTabName) {
-        this.state.invoiceSubTab = subTabName;
-        this.resetDetailViews();
-    }
-
+    // ==========================================
+    // UI NAVIGATION
+    // ==========================================
+    setSubTab(tabName) { this.state.activeSubTab = tabName; this.resetDetailViews(); }
+    setInvoiceSubTab(subTabName) { this.state.invoiceSubTab = subTabName; this.resetDetailViews(); }
+    
     resetDetailViews() {
         this.state.selectedInvoice = null;
         this.state.selectedOrder = null;
-        this.state.showLimitForm = false;
+        this.state.selectedOrderLines = []; // Clear lines on reset
+        this.state.selectedPayment = null;
+        this.state.selectedShop = null;
         this.closePaymentModal();
     }
 
-    // --- COMPUTED PROPERTIES ---
-    
-    // Orders
-    get filteredOrders() {
-        return this.state.orders.filter(ord => {
-            const search = this.state.ordersFilters.search.toLowerCase();
-            return ord.shop.toLowerCase().includes(search) || ord.display_name.toLowerCase().includes(search);
-        });
-    }
-    get paginatedOrders() {
-        const start = (this.state.ordersPage - 1) * this.state.itemsPerPage;
-        return this.filteredOrders.slice(start, start + this.state.itemsPerPage);
-    }
-    get ordersTotalPages() { return Math.max(1, Math.ceil(this.filteredOrders.length / this.state.itemsPerPage)); }
-
-    // Invoices
-    get filteredInvoices() {
-        return this.state.invoices.filter(inv => {
-            const s = this.state.invoiceFilters;
-            const matchSearch = inv.shop.toLowerCase().includes(s.search.toLowerCase()) || inv.display_name.toLowerCase().includes(s.search.toLowerCase());
-            const matchStatus = s.status ? inv.status === s.status : true;
-            
-            const amt = parseFloat(inv.amount.replace(/,/g, ''));
-            const matchMin = s.minAmount ? amt >= parseFloat(s.minAmount) : true;
-            const matchMax = s.maxAmount ? amt <= parseFloat(s.maxAmount) : true;
-
-            const matchStart = s.startDate ? new Date(inv.date) >= new Date(s.startDate) : true;
-            const matchEnd = s.endDate ? new Date(inv.date) <= new Date(s.endDate) : true;
-
-            return matchSearch && matchStatus && matchMin && matchMax && matchStart && matchEnd;
-        });
-    }
-    get paginatedInvoices() {
-        const start = (this.state.invoicePage - 1) * this.state.itemsPerPage;
-        return this.filteredInvoices.slice(start, start + this.state.itemsPerPage);
-    }
-    get invoiceTotalPages() { return Math.max(1, Math.ceil(this.filteredInvoices.length / this.state.itemsPerPage)); }
-
-    // Payments
-    get filteredPayments() {
-        return this.state.payments.filter(pay => {
-            const s = this.state.paymentsFilters;
-            const matchSearch = pay.shop.toLowerCase().includes(s.search.toLowerCase()) || pay.id.toLowerCase().includes(s.search.toLowerCase());
-            const matchMethod = s.method ? pay.method === s.method : true;
-            return matchSearch && matchMethod;
-        });
-    }
-    get paginatedPayments() {
-        const start = (this.state.paymentsPage - 1) * this.state.itemsPerPage;
-        return this.filteredPayments.slice(start, start + this.state.itemsPerPage);
-    }
-    get paymentsTotalPages() { return Math.max(1, Math.ceil(this.filteredPayments.length / this.state.itemsPerPage)); }
-
-    // Balances
-    get filteredBalances() {
-        return this.state.balances.filter(bal => {
-            return bal.shop.toLowerCase().includes(this.state.balancesFilters.search.toLowerCase());
-        });
-    }
-    get paginatedBalances() {
-        const start = (this.state.balancesPage - 1) * this.state.itemsPerPage;
-        return this.filteredBalances.slice(start, start + this.state.itemsPerPage);
-    }
-    get balancesTotalPages() { return Math.max(1, Math.ceil(this.filteredBalances.length / this.state.itemsPerPage)); }
-
-    // Credits
-    get filteredCredits() {
-        return this.state.credits.filter(c => {
-            const matchSearch = c.shop.toLowerCase().includes(this.state.creditFilters.search.toLowerCase()) || c.id.toLowerCase().includes(this.state.creditFilters.search.toLowerCase());
-            const matchStatus = this.state.creditFilters.status ? c.status === this.state.creditFilters.status : true;
-            return matchSearch && matchStatus;
-        });
-    }
-    get paginatedCredits() {
-        const start = (this.state.creditPage - 1) * this.state.itemsPerPage;
-        return this.filteredCredits.slice(start, start + this.state.itemsPerPage);
-    }
-    get creditTotalPages() { return Math.max(1, Math.ceil(this.filteredCredits.length / this.state.itemsPerPage)); }
-
-    // --- ACTIONS & NAVIGATION ---
-    
-    changePage(type, direction) {
-        if (type === 'order') this.state.ordersPage = Math.max(1, Math.min(this.state.ordersPage + direction, this.ordersTotalPages));
-        else if (type === 'invoice') this.state.invoicePage = Math.max(1, Math.min(this.state.invoicePage + direction, this.invoiceTotalPages));
-        else if (type === 'payment') this.state.paymentsPage = Math.max(1, Math.min(this.state.paymentsPage + direction, this.paymentsTotalPages));
-        else if (type === 'balance') this.state.balancesPage = Math.max(1, Math.min(this.state.balancesPage + direction, this.balancesTotalPages));
-        else if (type === 'credit') this.state.creditPage = Math.max(1, Math.min(this.state.creditPage + direction, this.creditTotalPages));
-    }
-
-    resetInvoiceFilters() {
-        this.state.invoiceFilters = { search: '', status: '', minAmount: '', maxAmount: '', startDate: '', endDate: '' };
-        this.state.invoicePage = 1;
-    }
-
-    // Detail Views
-    viewOrder(order) { this.state.selectedOrder = order; }
-    closeOrder() { this.state.selectedOrder = null; }
-    viewInvoice(invoice) { this.state.selectedInvoice = invoice; }
-    closeInvoice() { this.state.selectedInvoice = null; }
-
-    // --- BACKEND LOGIC (RPC CALLS) ---
-
-    async triggerCreateInvoice(orderId) {
+    // NEW: Async method to fetch order lines when clicking an order
+    async viewOrder(order) { 
+        this.state.selectedOrder = order; 
+        this.state.selectedOrderLines = []; // Reset lines while loading
         try {
-            // Calling the custom Python method you wrote in sale_order.py
-            const invoiceIds = await this.orm.call("sale.order", "action_create_invoice_portal", [[orderId]]);
-            if (invoiceIds && invoiceIds.length > 0) {
-                await this.fetchRealData();
-                this.setInvoiceSubTab('customer_invoices');
-            }
-        } catch (error) {
-            console.error("Error creating invoice via RPC", error);
+            const linesData = await this.orm.searchRead(
+                "sale.order.line",
+                // 'display_type = false' ensures we only get actual products, not section notes/headers
+                [["order_id", "=", order.id], ["display_type", "=", false]], 
+                ["product_id", "product_uom_qty", "qty_delivered", "qty_invoiced", "price_unit", "price_subtotal"]
+            );
+            this.state.selectedOrderLines = linesData.map(l => ({
+                id: l.id,
+                product: l.product_id ? l.product_id[1] : 'Unknown Product',
+                qty: l.product_uom_qty,
+                delivered: l.qty_delivered,
+                invoiced: l.qty_invoiced,
+                price: (l.price_unit || 0).toLocaleString(),
+                subtotal: (l.price_subtotal || 0).toLocaleString()
+            }));
+        } catch (error) { console.error("Lines Fetch Error:", error); }
+    }
+    
+    viewInvoice(invoice) { this.state.selectedInvoice = invoice; }
+    viewPayment(payment) { this.state.selectedPayment = payment; }
+    viewShop(shop) { this.state.selectedShop = { ...shop }; }
+
+    // ==========================================
+    // ACTIONS
+    // ==========================================
+    // ==========================================
+    // ==========================================
+    // FEATURE 1: CREATE INVOICE
+    // ==========================================
+    async triggerCreateInvoice(order) {
+        try {
+            const context = {
+                active_model: 'sale.order',
+                active_ids: [order.id],
+            };
+            
+            // wizardIds is returned as an array, e.g., [42]
+            const wizardIds = await this.orm.create("sale.advance.payment.inv", [{
+                advance_payment_method: 'delivered' 
+            }], { context });
+            
+            // FIXED: Pass [wizardIds] so Python receives [[42]] instead of [[[42]]]
+            await this.orm.call("sale.advance.payment.inv", "create_invoices", [wizardIds], { context });
+            
+            await this.fetchRealData();
+            this.setInvoiceSubTab('customer_invoices');
+            
+        } catch (error) { 
+            const pythonError = error.data?.message || error.message;
+            const pythonTrace = error.data?.debug || "No traceback available";
+            
+            console.error("🔥 INVOICE CREATION CRASH EXACT REASON:", pythonError);
+            console.error("🔥 PYTHON TRACEBACK:\n", pythonTrace);
+            
+            alert(`Backend rejected the invoice creation:\n\n${pythonError}\n\nCheck the browser console for details!`);
         }
     }
 
     async actionConfirmInvoice(invoice) {
         try {
             await this.orm.call("account.move", "action_post", [[invoice.id]]);
-            invoice.status = 'Pending'; 
-        } catch (error) {
-            console.error("Failed to confirm invoice", error);
-        }
+            await this.fetchRealData();
+            this.state.selectedInvoice.status = 'Posted'; 
+        } catch (error) { console.error("Failed to confirm", error); }
     }
 
-    openPaymentModal() {
-        this.state.showPaymentModal = true;
-        if (this.state.journals.length > 0) {
-            this.state.paymentForm.journal_id = this.state.journals[0].id;
-        }
-    }
-
-    closePaymentModal() {
-        this.state.showPaymentModal = false;
-        this.state.paymentForm = { journal_id: '', method: 'manual' };
-    }
-
-    async processPayment() {
+    async actionResetToDraft(invoice) {
         try {
-            // For production, this calls account.payment.register action_create_payments
-            this.state.selectedInvoice.status = 'Paid';
-            this.closePaymentModal();
-        } catch (error) {
-            console.error("Failed to process payment", error);
-        }
+            await this.orm.call("account.move", "button_draft", [[invoice.id]]);
+            await this.fetchRealData();
+            this.state.selectedInvoice.status = 'Draft';
+        } catch (error) { console.error("Failed to reset", error); }
     }
 
     async actionPrintInvoice(invoiceId) {
@@ -298,24 +254,69 @@ export class FinancialsInvoicing extends Component {
         });
     }
 
-    // --- CREDIT LIMIT LOGIC ---
-    
-    openLimitForm(creditRecord) {
-        this.state.limitForm.shopId = creditRecord.id;
-        this.state.limitForm.newLimit = creditRecord.limit;
-        this.state.showLimitForm = true;
+    openPaymentModal() {
+        const today = new Date().toISOString().split('T')[0];
+        this.state.paymentForm = {
+            journal_id: this.state.journals.length ? this.state.journals[0].id : '',
+            amount: this.state.selectedInvoice.rawAmount,
+            date: today,
+            invoice_id: this.state.selectedInvoice.id,
+            invoice_name: this.state.selectedInvoice.display_name
+        };
+        this.state.showPaymentModal = true;
     }
 
-    updateCreditLimit() {
-        const record = this.state.credits.find(c => c.id === this.state.limitForm.shopId);
-        if (record) {
-            record.limit = parseInt(this.state.limitForm.newLimit);
-            if (record.utilized > record.limit) record.status = "Exceeded";
-            else if (record.utilized > (record.limit * 0.85)) record.status = "Critical";
-            else record.status = "Healthy";
+    closePaymentModal() { this.state.showPaymentModal = false; }
+
+    // ==========================================
+    // FEATURE 3: PAYMENT WIZARD
+    // ==========================================
+    async processPayment() {
+        try {
+            const form = this.state.paymentForm;
+            const context = {
+                active_model: 'account.move',
+                active_ids: [form.invoice_id],
+            };
+            
+            // wizardIds is returned as an array
+            const wizardIds = await this.orm.create("account.payment.register", [{
+                journal_id: parseInt(form.journal_id),
+                amount: parseFloat(form.amount),
+                payment_date: form.date,
+            }], { context });
+            
+            // FIXED: Pass [wizardIds] to avoid the unhashable list error
+            await this.orm.call("account.payment.register", "action_create_payments", [wizardIds], { context });
+            
+            await this.fetchRealData(); 
+            this.closePaymentModal();
+            this.state.selectedInvoice.status = 'Paid';
+            
+        } catch (error) {
+            const pythonError = error.data?.message || error.message;
+            const pythonTrace = error.data?.debug || "No traceback available";
+            
+            console.error("🔥 PAYMENT CRASH EXACT REASON:", pythonError);
+            console.error("🔥 PYTHON TRACEBACK:\n", pythonTrace);
+            
+            alert(`Payment failed:\n\n${pythonError}\n\nCheck the browser console for details!`);
         }
-        this.state.showLimitForm = false;
+    }
+
+    async saveShopBalance() {
+        try {
+            const shop = this.state.selectedShop;
+            await this.orm.write("res.partner", [shop.id], {
+                credit_limit: parseFloat(shop.rawLimit)
+            });
+            await this.fetchRealData();
+            this.state.selectedShop = null;
+        } catch (error) { 
+            console.error("Failed to update credit limit", error); 
+            alert("Failed to save limit. Ensure you have distributor rights.");
+        }
     }
 }
 
-FinancialsInvoicing.template = "shahtaj_distributor.FinancialsInvoicing"
+FinancialsInvoicing.template = "shahtaj_distributor.FinancialsInvoicing";

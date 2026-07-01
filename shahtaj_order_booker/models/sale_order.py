@@ -47,13 +47,3 @@ class SaleOrder(models.Model):
             'view_mode': 'form',
             'target': 'current',
         }
-    def action_create_invoice_portal(self):
-        """
-        Public wrapper to allow OWL frontend RPC calls to create invoices.
-        Internal private methods cannot be called directly over RPC.
-        """
-        # Call the native private method internally
-        invoices = self._create_invoices()
-        
-        # Return the created invoice IDs just in case the frontend needs them later
-        return invoices.ids if invoices else []
