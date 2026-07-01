@@ -48,8 +48,6 @@
                         <thead class="bg-light text-uppercase small fw-bold text-muted">
                             <tr>
                                 <th class="border-top-0 ps-4">Order Booker</th>
-                                <th class="border-top-0">Assigned Zone</th>
-                                <th class="border-top-0">Primary Route</th>
                                 <th class="border-top-0 text-end pe-4">Action</th>
                             </tr>
                         </thead>
@@ -62,12 +60,7 @@
                                             <t t-esc="booker.id"/>
                                         </small>
                                     </td>
-                                    <td class="align-middle">
-                                        <t t-esc="booker.zone"/>
-                                    </td>
-                                    <td class="align-middle">
-                                        <t t-esc="booker.route"/>
-                                    </td>
+                                    
                                     <td class="align-middle text-end pe-4">
                                         <button class="btn btn-sm btn-outline-dark fw-bold d-inline-flex align-items-center" t-on-click="() => this.openBookerDetails(booker)">
                                             <t t-if="this.state.activeMainTab === 'schedules'">View Schedules</t>
