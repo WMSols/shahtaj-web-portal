@@ -20,8 +20,8 @@
                 'data/shahtaj_cron.xml',
 
                 # ── 3. CORE VIEWS + ACTIONS (no inherit from other module views) ──
-                'views/shahtaj_zone_views.xml',
                 'views/shahtaj_route_views.xml',
+                'views/shahtaj_zone_views.xml',
                 'views/shahtaj_partner_views.xml',                                     # defines view_shahtaj_shop_form
                 'views/shahtaj_schedule_views.xml',
                 'views/shahtaj_visit_task_views.xml',
