@@ -192,11 +192,6 @@ export class FinancialsInvoicing extends Component {
     viewPayment(payment) { this.state.selectedPayment = payment; }
     viewShop(shop) { this.state.selectedShop = { ...shop }; }
 
-    // ==========================================
-    // ACTIONS
-    // ==========================================
-    // ==========================================
-    // ==========================================
     // FEATURE 1: CREATE INVOICE
     // ==========================================
     async triggerCreateInvoice(order) {
@@ -297,8 +292,8 @@ export class FinancialsInvoicing extends Component {
             const pythonError = error.data?.message || error.message;
             const pythonTrace = error.data?.debug || "No traceback available";
             
-            console.error("🔥 PAYMENT CRASH EXACT REASON:", pythonError);
-            console.error("🔥 PYTHON TRACEBACK:\n", pythonTrace);
+            console.error(" PAYMENT CRASH EXACT REASON:", pythonError);
+            console.error(" PYTHON TRACEBACK:\n", pythonTrace);
             
             alert(`Payment failed:\n\n${pythonError}\n\nCheck the browser console for details!`);
         }

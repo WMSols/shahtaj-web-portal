@@ -5,7 +5,7 @@
     'summary': 'Standalone custom command center for Shahtaj Oil distributions.',
     'category': 'Sales/Distribution',
     'author': 'IT Services / Custom Engineering',
-    'depends': ['base', 'web', 'fastapi'], 
+    'depends': ['base', 'web', 'fastapi', 'shahtaj_order_booker'], 
     'data': [
         'views/client_actions.xml',
         'views/menus.xml',
